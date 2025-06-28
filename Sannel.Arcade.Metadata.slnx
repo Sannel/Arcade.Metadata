@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+  </Folder>
+  <Project Path="src/Sannel.Arcade.Metadata/Sannel.Arcade.Metadata.Client/Sannel.Arcade.Metadata.Client.csproj" Id="2da66706-291c-443d-b8de-f7241ab57d2e" />
+  <Project Path="src/Sannel.Arcade.Metadata/Sannel.Arcade.Metadata/Sannel.Arcade.Metadata.csproj" Id="33ad5978-e461-435a-88e4-137a2ef12cbb" />
+</Solution>
