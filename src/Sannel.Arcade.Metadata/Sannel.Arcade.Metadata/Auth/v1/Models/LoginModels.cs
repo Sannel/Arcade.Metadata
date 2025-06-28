@@ -1,4 +1,4 @@
-namespace Sannel.Arcade.Metadata.Models;
+namespace Sannel.Arcade.Metadata.Auth.v1.Models;
 
 public class LoginRequest
 {

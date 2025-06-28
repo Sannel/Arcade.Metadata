@@ -1,6 +1,5 @@
 using Sannel.Arcade.Metadata.Client.Pages;
 using Sannel.Arcade.Metadata.Components;
-using Sannel.Arcade.Metadata.Models;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -8,6 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using MudBlazor.Services;
 
 using System.Text;
+using Sannel.Arcade.Metadata.Auth.v1.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 

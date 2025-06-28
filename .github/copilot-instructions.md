@@ -21,6 +21,7 @@ When generating or modifying code in this repository, **always follow the `.edit
 - Use **camelCase** with `s_` prefix for private static fields
 - Interface names should start with `I` (e.g., `IService`)
 - Type parameters should start with `T` (e.g., `TEntity`)
+- **Each public or internal class must be in its own file**
 
 ### Blazor/Razor Specific Guidelines
 - Follow standard Blazor component conventions

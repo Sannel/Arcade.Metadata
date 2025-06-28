@@ -5,10 +5,9 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Sannel.Arcade.Metadata.Auth.v1.Models;
 
-using Sannel.Arcade.Metadata.Models;
-
-namespace Sannel.Arcade.Metadata.Controllers;
+namespace Sannel.Arcade.Metadata.Auth.v1.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
