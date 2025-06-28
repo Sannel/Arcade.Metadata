@@ -1,5 +1,5 @@
-﻿@page "/counter"
-@rendermode InteractiveWebAssembly
+﻿@page "/app/counter"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 @using Sannel.Arcade.Metadata.Client.Components
 @using Sannel.Arcade.Metadata.Client.Services
 @inject IAuthService AuthService
@@ -37,7 +37,7 @@
         bool isAuthenticated = await AuthService.IsAuthenticatedAsync();
         if (!isAuthenticated)
         {
-            Navigation.NavigateTo("/login");
+            Navigation.NavigateTo("/auth-login");
         }
     }
 

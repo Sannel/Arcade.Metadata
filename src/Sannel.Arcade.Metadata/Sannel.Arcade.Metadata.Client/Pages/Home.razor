@@ -1,5 +1,5 @@
-@page "/"
-@rendermode InteractiveWebAssembly
+@page "/app"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 @using Sannel.Arcade.Metadata.Client.Components
 
 <PageTitle>Home</PageTitle>
@@ -18,7 +18,7 @@
             <MudPaper Class="pa-4 mt-4" Elevation="2">
                 <MudText Typo="Typo.h6">You now have access to:</MudText>
                 <MudList>
-                    <MudListItem Icon="@Icons.Material.Filled.Add" Text="Counter - A simple counter demo" />
+                    <MudNavLink Href="/app/counter" Icon="@Icons.Material.Filled.Add">Counter - A simple counter demo</MudNavLink>
                     <MudListItem Icon="@Icons.Material.Filled.List" Text="Weather - Weather forecast data" />
                 </MudList>
             </MudPaper>

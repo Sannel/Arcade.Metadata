@@ -1,5 +1,5 @@
-@page "/login"
-@rendermode InteractiveWebAssembly
+@page "/auth-login"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 @using Sannel.Arcade.Metadata.Client.Models
 @using Sannel.Arcade.Metadata.Client.Services
 @inject IAuthService AuthService
@@ -77,7 +77,7 @@
         bool isAuthenticated = await AuthService.IsAuthenticatedAsync();
         if (isAuthenticated)
         {
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo("/app");
         }
     }
 
@@ -93,7 +93,7 @@
             if (response.Success)
             {
                 AuthStateProvider.NotifyUserAuthentication(response.Token);
-                Navigation.NavigateTo("/");
+                Navigation.NavigateTo("/app");
             }
             else
             {
