@@ -8,6 +8,7 @@ using MudBlazor.Services;
 
 using System.Text;
 using Sannel.Arcade.Metadata.Auth.v1.Models;
+using Sannel.Arcade.Metadata.Settings.v1;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -54,6 +55,11 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
+SettingsSliceSetup.Setup(
+	builder.Environment,
+	builder.Configuration,
+	builder.Services);
+
 builder.Services.AddCascadingAuthenticationState();
 
 // Add services to the container.
@@ -90,6 +96,7 @@ app.UseStaticFiles();
 
 // Map API controllers
 app.MapControllers();
+app.MapStaticAssets();
 
 app.MapRazorComponents<App>()
 	.AddInteractiveWebAssemblyRenderMode()

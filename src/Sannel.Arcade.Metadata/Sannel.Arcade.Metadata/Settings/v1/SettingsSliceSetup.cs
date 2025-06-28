@@ -14,5 +14,11 @@ public static class SettingsSliceSetup
 			_ = settingService.InitializeAsync();
 			services.AddSingleton<IRuntimeSettingsService>(settingService);
 		}
+		else if (OperatingSystem.IsWindows())
+		{
+			var settingService = new WindowsCredentialManagerRuntimeSettingsService();
+			_ = settingService.InitializeAsync();
+			services.AddSingleton<IRuntimeSettingsService>(settingService);
+		}
 	}
 }
