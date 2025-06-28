@@ -3,6 +3,17 @@ using Sannel.Arcade.Metadata.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add user-specific configuration file
+var userConfigDirectory = Path.Combine(
+	Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+	".sannel", "arcade", "metadata");
+var userConfigFile = Path.Combine(userConfigDirectory, "appsettings.json");
+
+if (File.Exists(userConfigFile))
+{
+	builder.Configuration.AddJsonFile(userConfigFile, optional: true, reloadOnChange: true);
+}
+
 // Add services to the container.
 builder.Services.AddRazorComponents()
 	.AddInteractiveWebAssemblyComponents();
