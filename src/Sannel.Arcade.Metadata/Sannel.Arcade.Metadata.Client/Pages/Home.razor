@@ -1,0 +1,25 @@
+@page "/app"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@using Sannel.Arcade.Metadata.Client.Components
+
+<PageTitle>Home</PageTitle>
+
+<CascadingAuthenticationState>
+	<div class="d-flex justify-content-between align-items-center mb-4">
+		<MudText Typo="Typo.h3">Welcome to Arcade Metadata</MudText>
+		<AuthDisplay />
+	</div>
+
+	<AuthorizeView>
+		<Authorized>
+			<MudAlert Severity="Severity.Success">
+				Hello @context.User.Identity?.Name! You are successfully logged in.
+			</MudAlert>
+		</Authorized>
+		<NotAuthorized>
+			<MudAlert Severity="Severity.Info">
+				Please log in to access the application features.
+			</MudAlert>
+		</NotAuthorized>
+	</AuthorizeView>
+</CascadingAuthenticationState>
