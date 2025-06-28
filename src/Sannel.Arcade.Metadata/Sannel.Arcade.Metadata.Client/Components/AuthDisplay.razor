@@ -1,0 +1,40 @@
+@using Sannel.Arcade.Metadata.Client.Services
+@inject CustomAuthenticationStateProvider AuthStateProvider
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<CascadingAuthenticationState>
+    <AuthorizeView>
+        <Authorized>
+            <MudText Typo="Typo.body2" Class="px-4 py-2">
+                Welcome, @context.User.Identity?.Name!
+            </MudText>
+            <MudButton OnClick="Logout" 
+                       StartIcon="@Icons.Material.Filled.Logout" 
+                       Variant="Variant.Text" 
+                       Size="Size.Small"
+                       Class="mx-2 mb-2">
+                Logout
+            </MudButton>
+        </Authorized>
+        <NotAuthorized>
+            <MudButton Href="/login" 
+                       StartIcon="@Icons.Material.Filled.Login" 
+                       Variant="Variant.Filled" 
+                       Color="Color.Primary"
+                       Size="Size.Small"
+                       Class="mx-2 mb-2">
+                Login
+            </MudButton>
+        </NotAuthorized>
+    </AuthorizeView>
+</CascadingAuthenticationState>
+
+@code {
+    private async Task Logout()
+    {
+        await AuthService.LogoutAsync();
+        AuthStateProvider.NotifyUserLogout();
+        Navigation.NavigateTo("/");
+    }
+}

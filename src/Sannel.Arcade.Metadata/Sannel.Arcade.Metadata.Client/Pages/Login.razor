@@ -1,0 +1,112 @@
+@page "/login"
+@rendermode InteractiveWebAssembly
+@using Sannel.Arcade.Metadata.Client.Models
+@using Sannel.Arcade.Metadata.Client.Services
+@inject IAuthService AuthService
+@inject CustomAuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Login</PageTitle>
+
+<CascadingAuthenticationState>
+    <MudContainer MaxWidth="MaxWidth.Small">
+        <MudPaper Class="pa-8 mt-8" Elevation="4">
+            <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">
+                Login
+            </MudText>
+
+            <EditForm Model="_loginRequest" OnValidSubmit="HandleLogin">
+                <DataAnnotationsValidator />
+
+                <MudTextField 
+                    @bind-Value="_loginRequest.Username"
+                    Label="Username"
+                    Variant="Variant.Outlined"
+                    Margin="Margin.Normal"
+                    FullWidth="true"
+                    Required="true"
+                    For="@(() => _loginRequest.Username)" />
+
+                <MudTextField 
+                    @bind-Value="_loginRequest.Password"
+                    Label="Password"
+                    Variant="Variant.Outlined"
+                    Margin="Margin.Normal"
+                    FullWidth="true"
+                    InputType="InputType.Password"
+                    Required="true"
+                    For="@(() => _loginRequest.Password)" />
+
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <MudAlert Severity="Severity.Error" Class="mt-4">
+                        @_errorMessage
+                    </MudAlert>
+                }
+
+                <MudButton 
+                    ButtonType="ButtonType.Submit"
+                    Variant="Variant.Filled"
+                    Color="Color.Primary"
+                    FullWidth="true"
+                    Class="mt-4"
+                    Disabled="_isLoading">
+                    @if (_isLoading)
+                    {
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                        <MudText Class="ms-2">Logging in...</MudText>
+                    }
+                    else
+                    {
+                        <MudText>Login</MudText>
+                    }
+                </MudButton>
+            </EditForm>
+        </MudPaper>
+    </MudContainer>
+</CascadingAuthenticationState>
+
+@code {
+    private LoginRequest _loginRequest = new();
+    private string _errorMessage = string.Empty;
+    private bool _isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // If user is already authenticated, redirect to home
+        bool isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        if (isAuthenticated)
+        {
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        _isLoading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            LoginResponse response = await AuthService.LoginAsync(_loginRequest);
+
+            if (response.Success)
+            {
+                AuthStateProvider.NotifyUserAuthentication(response.Token);
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                _errorMessage = response.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

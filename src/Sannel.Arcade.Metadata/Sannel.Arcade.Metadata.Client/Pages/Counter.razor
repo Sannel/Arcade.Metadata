@@ -1,17 +1,45 @@
 ﻿@page "/counter"
 @rendermode InteractiveWebAssembly
+@using Sannel.Arcade.Metadata.Client.Components
+@using Sannel.Arcade.Metadata.Client.Services
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
 
 <PageTitle>Counter</PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Counter</MudText>
+<CascadingAuthenticationState>
+    <AuthorizeView>
+        <Authorized>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <MudText Typo="Typo.h3">Counter</MudText>
+                <AuthDisplay />
+            </div>
 
-<MudPaper Class="pa-4" Elevation="2">
-    <MudText Typo="Typo.body1" GutterBottom="true">Current count: @currentCount</MudText>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="IncrementCount">Click me</MudButton>
-</MudPaper>
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudText Typo="Typo.body1" GutterBottom="true">Current count: @currentCount</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="IncrementCount">Click me</MudButton>
+            </MudPaper>
+        </Authorized>
+        <NotAuthorized>
+            <MudAlert Severity="Severity.Warning">
+                Please <MudLink Href="/login">log in</MudLink> to access this page.
+            </MudAlert>
+        </NotAuthorized>
+    </AuthorizeView>
+</CascadingAuthenticationState>
 
 @code {
     private int currentCount = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if user is authenticated, if not redirect to login
+        bool isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        if (!isAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+        }
+    }
 
     private void IncrementCount()
     {
