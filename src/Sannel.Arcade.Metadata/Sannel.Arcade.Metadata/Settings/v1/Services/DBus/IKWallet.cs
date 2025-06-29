@@ -3,7 +3,7 @@
 namespace Sannel.Arcade.Metadata.Settings.v1.Services.DBus;
 
 [DBusInterface("org.kde.KWallet")]
-interface IKWallet : IDBusObject
+public interface IKWallet : IDBusObject
 {
 	Task<int> openAsync(string wallet, long wId, string appid);
 	Task<bool> isOpenAsync(int handle);

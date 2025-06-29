@@ -11,7 +11,7 @@ namespace Sannel.Arcade.Metadata.Settings.v1.Services;
 public class WindowsCredentialManagerRuntimeSettingsService : IRuntimeSettingsService
 {
 	private const string TargetPrefix = "Sannel.Arcade.Metadata:";
-	private const string KeysListTarget = "Sannel.Arcade.Metadata:__keys__";
+	private const string KeysListTarget = "Sannel.Arcade.Metadata:Keys";
 	private bool _isInitialized;
 	private readonly SemaphoreSlim _semaphore = new(1, 1);
 

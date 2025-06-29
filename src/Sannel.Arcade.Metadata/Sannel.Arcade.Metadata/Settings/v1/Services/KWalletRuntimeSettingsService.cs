@@ -3,6 +3,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 
+using Microsoft.AspNetCore.Components.Forms.Mapping;
+
 using Sannel.Arcade.Metadata.Components;
 using Sannel.Arcade.Metadata.Settings.v1.Services.DBus;
 
@@ -20,19 +22,23 @@ public class KWalletRuntimeSettingsService : IRuntimeSettingsService, IDisposabl
 	const string WalletName = "kdewallet";
 	const string FolderName = "Sannel.Arcade.Metadata";
 	const string AppId = "com.sannel.arcade.metadata";
+	private readonly ILogger _logger;
 	private readonly Connection _connection;
 	private bool _isInitialized;
 	private SemaphoreSlim _semaphore = new(1, 1);
 	private IKWallet? _kwallet = null;
 	private int _handle = -1;
 
-	public KWalletRuntimeSettingsService()
+	public KWalletRuntimeSettingsService(ILogger<KWalletRuntimeSettingsService> logger)
 	{
-		_connection = new Connection(Address.System);
+		ArgumentNullException.ThrowIfNull(logger);
+		_logger = logger;
+		_connection = new Connection(Address.Session);
 	}
 
 	public async Task InitializeAsync(CancellationToken cancellationToken = default)
 	{
+		_logger.LogDebug("Initializing KWalletRuntimeSettingsService...");
 		await _semaphore.WaitAsync(cancellationToken);
 		if (_isInitialized)
 		{
@@ -41,9 +47,14 @@ public class KWalletRuntimeSettingsService : IRuntimeSettingsService, IDisposabl
 		}
 		try
 		{
+			_connection.StateChanged += onStateChanged;
 			await _connection.ConnectAsync();
 			await SetupWalletAsync();
 			_isInitialized = true;
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Failed to initialize KWalletRuntimeSettingsService.");
 		}
 		finally
 		{
@@ -51,12 +62,25 @@ public class KWalletRuntimeSettingsService : IRuntimeSettingsService, IDisposabl
 		}
 	}
 
+	private void onStateChanged(object? sender, ConnectionStateChangedEventArgs e)
+	{
+		_logger.LogDebug("KWallet connection state changed: {state}", e.State);
+		if (e.State == ConnectionState.Connected)
+		{
+			_logger.LogDebug("KWallet connection established.");
+		}
+		else if (e.State == ConnectionState.Disconnected)
+		{
+			_logger.LogWarning("KWallet connection lost.");
+		}
+	}
+
 	protected async Task SetupWalletAsync()
 	{
 		// Get the KWallet service
 		_kwallet = _connection.CreateProxy<IKWallet>(
-			"org.kde.kwalletd5",
-			"/modules/kwalletd");
+			"org.kde.kwalletd6",
+			"/modules/kwalletd6");
 
 		// Open the wallet (windowId = 0 for headless)
 		_handle = await _kwallet.openAsync(WalletName, 0, AppId);
@@ -65,10 +89,15 @@ public class KWalletRuntimeSettingsService : IRuntimeSettingsService, IDisposabl
 			Console.WriteLine("Failed to open KWallet.");
 			return;
 		}
+		else
+		{
+			_logger.LogDebug("KWallet opened with handle: {handle}", _handle);
+		}
 
 		// Ensure folder exists
 		if (!await _kwallet.hasFolderAsync(_handle, FolderName, AppId))
 		{
+			_logger.LogDebug("Folder '{folder}' does not exist in KWallet, creating it.", FolderName);
 			await _kwallet.createFolderAsync(_handle, FolderName, AppId);
 		}
 	}

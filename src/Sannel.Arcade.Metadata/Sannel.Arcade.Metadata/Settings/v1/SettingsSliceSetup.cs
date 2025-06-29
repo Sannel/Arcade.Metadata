@@ -10,9 +10,13 @@ public static class SettingsSliceSetup
 	{
 		if (OperatingSystem.IsLinux())
 		{
-			var settingService = new KWalletRuntimeSettingsService();
-			_ = settingService.InitializeAsync();
-			services.AddSingleton<IRuntimeSettingsService>(settingService);
+			services.AddSingleton<IRuntimeSettingsService>(sp =>
+			{
+				var logger = sp.GetRequiredService<ILogger<KWalletRuntimeSettingsService>>();
+				var settingService = new KWalletRuntimeSettingsService(logger);
+				settingService.InitializeAsync().GetAwaiter().GetResult();
+				return settingService;
+			});
 		}
 		else if (OperatingSystem.IsWindows())
 		{

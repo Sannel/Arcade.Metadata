@@ -71,12 +71,51 @@ builder.Services.AddMudServices();
 // Add controllers for API endpoints
 builder.Services.AddControllers();
 
+// Add API Explorer and Swagger services
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+	options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+	{
+		Title = "Sannel Arcade Metadata API",
+		Version = "v1",
+		Description = "API for managing arcade metadata and settings"
+	});
+
+	// Add JWT authentication to Swagger
+	options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+	{
+		Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+		Name = "Authorization",
+		In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+		Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+		Scheme = "bearer",
+		BearerFormat = "JWT"
+	});
+
+	options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+	{
+		{
+			new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+			{
+				Reference = new Microsoft.OpenApi.Models.OpenApiReference
+				{
+					Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+					Id = "Bearer"
+				}
+			},
+			Array.Empty<string>()
+		}
+	});
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
 	app.UseWebAssemblyDebugging();
+
 }
 else
 {
@@ -84,6 +123,13 @@ else
 	// The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
 	app.UseHsts();
 }
+// Enable Swagger in development
+app.UseSwagger();
+app.UseSwaggerUI(options =>
+{
+	options.SwaggerEndpoint("/swagger/v1/swagger.json", "Sannel Arcade Metadata API v1");
+	options.RoutePrefix = "swagger";
+});
 
 app.UseHttpsRedirection();
 
