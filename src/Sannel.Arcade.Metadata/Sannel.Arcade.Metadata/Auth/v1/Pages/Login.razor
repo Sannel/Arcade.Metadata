@@ -1,0 +1,72 @@
+﻿@page "/auth/v1/login"
+@rendermode InteractiveServer
+
+<PageTitle>Login - Arcade Metadata</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+	<MudGrid Justify="Justify.Center">
+		<MudItem xs="12" sm="8" md="6">
+			<MudPaper Elevation="4" Class="pa-8">
+				<MudStack Spacing="4">
+					<MudText Typo="Typo.h4" Align="Align.Center" Class="mb-4">
+						<MudIcon Icon="@Icons.Material.Filled.Login" Class="mr-2" />
+						Login
+					</MudText>
+					
+					@if (!string.IsNullOrEmpty(errorMessage))
+					{
+						<MudAlert Severity="Severity.Error" Class="mb-4">
+							@errorMessage
+						</MudAlert>
+					}
+
+					<EditForm Model="loginModel" OnValidSubmit="HandleSubmit">
+						<DataAnnotationsValidator />
+						<MudStack Spacing="3">
+							<MudTextField @bind-Value="loginModel.Username"
+										  Label="Username"
+										  Variant="Variant.Outlined"
+										  FullWidth="true"
+										  Required="true"
+										  For="@(() => loginModel.Username)"
+										  Disabled="isLoading"
+										  Adornment="Adornment.Start"
+										  AdornmentIcon="@Icons.Material.Filled.Person" />
+
+							<MudTextField @bind-Value="loginModel.Password"
+										  Label="Password"
+										  Variant="Variant.Outlined"
+										  InputType="InputType.Password"
+										  FullWidth="true"
+										  Required="true"
+										  For="@(() => loginModel.Password)"
+										  Disabled="isLoading"
+										  Adornment="Adornment.Start"
+										  AdornmentIcon="@Icons.Material.Filled.Lock" />
+
+							<MudButton ButtonType="ButtonType.Submit"
+									   Variant="Variant.Filled"
+									   Color="Color.Primary"
+									   FullWidth="true"
+									   Size="Size.Large"
+									   Disabled="isLoading"
+									   Class="mt-4">
+								@if (isLoading)
+								{
+									<MudProgressCircular Size="Size.Small" Class="mr-2" />
+									<span>Signing in...</span>
+								}
+								else
+								{
+									<MudIcon Icon="@Icons.Material.Filled.Login" Class="mr-2" />
+									<span>Sign In</span>
+								}
+							</MudButton>
+						</MudStack>
+					 </EditForm>
+				</MudStack>
+			</MudPaper>
+		</MudItem>
+	</MudGrid>
+</MudContainer>
+

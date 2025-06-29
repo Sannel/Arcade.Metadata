@@ -9,6 +9,8 @@ using MudBlazor.Services;
 using System.Text;
 using Sannel.Arcade.Metadata.Auth.v1.Models;
 using Sannel.Arcade.Metadata.Settings.v1;
+using Sannel.Arcade.Metadata.Client.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,40 +38,34 @@ if (authConfig is null)
 // Add JWT authentication
 builder.Services.AddAuthentication(options =>
 {
-	options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-	options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+	options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+	options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 })
-.AddJwtBearer(options =>
-{
-	options.TokenValidationParameters = new TokenValidationParameters
-	{
-		ValidateIssuer = true,
-		ValidateAudience = true,
-		ValidateLifetime = true,
-		ValidateIssuerSigningKey = true,
-		ValidIssuer = authConfig.JwtIssuer,
-		ValidAudience = authConfig.JwtAudience,
-		IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(authConfig.JwtSecret))
-	};
-});
+	.AddCookie(CookieAuthenticationDefaults.AuthenticationScheme);
 
 builder.Services.AddAuthorization();
-
 SettingsSliceSetup.Setup(
 	builder.Environment,
 	builder.Configuration,
 	builder.Services);
 
+// Add settings service
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<ISettingsService, SettingsService>();
+
 builder.Services.AddCascadingAuthenticationState();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
-	.AddInteractiveWebAssemblyComponents();
+	.AddInteractiveServerComponents()
+	.AddInteractiveWebAssemblyComponents()
+	.AddAuthenticationStateSerialization();
 
 builder.Services.AddMudServices();
 
 // Add controllers for API endpoints
 builder.Services.AddControllers();
+builder.Services.AddHttpContextAccessor();
 
 // Add API Explorer and Swagger services
 builder.Services.AddEndpointsApiExplorer();
@@ -145,6 +141,7 @@ app.MapControllers();
 app.MapStaticAssets();
 
 app.MapRazorComponents<App>()
+	.AddInteractiveServerRenderMode()
 	.AddInteractiveWebAssemblyRenderMode()
 	.AddAdditionalAssemblies(typeof(Sannel.Arcade.Metadata.Client._Imports).Assembly);
 

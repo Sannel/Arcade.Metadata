@@ -10,10 +10,11 @@
 		<MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
 		<AuthorizeView>
 			<Authorized>
+				<MudNavLink Href="settings" Icon="@Icons.Material.Filled.Settings">Settings</MudNavLink>
 				<MudNavLink Href="#" Icon="@Icons.Material.Filled.Logout" OnClick="Logout">Logout</MudNavLink>
 			</Authorized>
 			<NotAuthorized>
-				<MudNavLink Href="auth-login" Icon="@Icons.Material.Filled.Login">Login</MudNavLink>
+				<MudNavLink Href="auth/v1/login" Icon="@Icons.Material.Filled.Login">Login</MudNavLink>
 			</NotAuthorized>
 		</AuthorizeView>
 	</MudNavMenu>

@@ -9,15 +9,13 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
 builder.Services.AddMudServices();
 
-// Add authentication services
-builder.Services.AddScoped<ILocalStorageService, LocalStorageService>();
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<CustomAuthenticationStateProvider>();
-builder.Services.AddScoped<AuthenticationStateProvider>(provider => provider.GetRequiredService<CustomAuthenticationStateProvider>());
+// Add settings service
+builder.Services.AddScoped<ISettingsService, SettingsService>();
 
 // Add authorization services
 builder.Services.AddAuthorizationCore();
-builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddCascadingAuthenticationState()
+	.AddAuthenticationStateDeserialization();
 
 // Configure HttpClient with base address
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
