@@ -10,6 +10,8 @@ public interface ISettingsService
 {
 	Task<GetRuntimeSettingResponse> GetSettingAsync(string key);
 	Task<SetRuntimeSettingResponse> SetSettingAsync(string key, string value);
+	Task<GetRuntimeSettingResponse> GetInsecureSettingAsync(string key);
+	Task<SetRuntimeSettingResponse> SetInsecureSettingAsync(string key, string value);
 }
 
 public class SettingsService : ISettingsService
@@ -96,6 +98,84 @@ public class SettingsService : ISettingsService
 		catch (Exception ex)
 		{
 			return new SetRuntimeSettingResponse { Success = false, ErrorMessage = $"Error setting value: {ex.Message}" };
+		}
+	}
+
+	public async Task<GetRuntimeSettingResponse> GetInsecureSettingAsync(string key)
+	{
+		try
+		{
+			await SetAuthorizationHeaderAsync();
+
+			HttpResponseMessage response = await _httpClient.GetAsync($"api/v1/settings/insecure/{Uri.EscapeDataString(key)}");
+			
+			if (response.IsSuccessStatusCode)
+			{
+				string content = await response.Content.ReadAsStringAsync();
+				GetRuntimeSettingResponse? settingResponse = JsonSerializer.Deserialize<GetRuntimeSettingResponse>(content, new JsonSerializerOptions
+				{
+					PropertyNameCaseInsensitive = true
+				});
+
+				return settingResponse ?? new GetRuntimeSettingResponse { Success = false, ErrorMessage = "Invalid response" };
+			}
+			else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+			{
+				return new GetRuntimeSettingResponse { Success = false, ErrorMessage = $"Setting '{key}' not found" };
+			}
+			else
+			{
+				string errorContent = await response.Content.ReadAsStringAsync();
+				GetRuntimeSettingResponse? errorResponse = JsonSerializer.Deserialize<GetRuntimeSettingResponse>(errorContent, new JsonSerializerOptions
+				{
+					PropertyNameCaseInsensitive = true
+				});
+
+				return errorResponse ?? new GetRuntimeSettingResponse { Success = false, ErrorMessage = "Failed to get insecure setting" };
+			}
+		}
+		catch (Exception ex)
+		{
+			return new GetRuntimeSettingResponse { Success = false, ErrorMessage = $"Error retrieving insecure setting: {ex.Message}" };
+		}
+	}
+
+	public async Task<SetRuntimeSettingResponse> SetInsecureSettingAsync(string key, string value)
+	{
+		try
+		{
+			await SetAuthorizationHeaderAsync();
+
+			string encodedKey = Uri.EscapeDataString(key);
+			string encodedValue = Uri.EscapeDataString(value);
+			string url = $"api/v1/settings/insecure/{encodedKey}?value={encodedValue}";
+
+			HttpResponseMessage response = await _httpClient.PutAsync(url, null);
+			
+			if (response.IsSuccessStatusCode)
+			{
+				string content = await response.Content.ReadAsStringAsync();
+				SetRuntimeSettingResponse? settingResponse = JsonSerializer.Deserialize<SetRuntimeSettingResponse>(content, new JsonSerializerOptions
+				{
+					PropertyNameCaseInsensitive = true
+				});
+
+				return settingResponse ?? new SetRuntimeSettingResponse { Success = false, ErrorMessage = "Invalid response" };
+			}
+			else
+			{
+				string errorContent = await response.Content.ReadAsStringAsync();
+				SetRuntimeSettingResponse? errorResponse = JsonSerializer.Deserialize<SetRuntimeSettingResponse>(errorContent, new JsonSerializerOptions
+				{
+					PropertyNameCaseInsensitive = true
+				});
+
+				return errorResponse ?? new SetRuntimeSettingResponse { Success = false, ErrorMessage = "Failed to set insecure setting" };
+			}
+		}
+		catch (Exception ex)
+		{
+			return new SetRuntimeSettingResponse { Success = false, ErrorMessage = $"Error setting insecure value: {ex.Message}" };
 		}
 	}
 

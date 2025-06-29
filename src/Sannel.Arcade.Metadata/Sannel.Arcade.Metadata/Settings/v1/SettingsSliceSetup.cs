@@ -8,6 +8,9 @@ public static class SettingsSliceSetup
 {
 	public static void Setup(IHostEnvironment env, IConfiguration configuration, IServiceCollection services)
 	{
+		// Register the insecure settings service
+		services.AddSingleton<IInsecureSettings, JsonFileInsecureSettings>();
+
 		if (OperatingSystem.IsLinux())
 		{
 			services.AddSingleton<IRuntimeSettingsService>(sp =>

@@ -112,3 +112,12 @@ public class IgdbSettings
 	[Required(ErrorMessage = "Client Secret is required")]
 	public string ClientSecret { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// Model for ROMs settings form.
+/// </summary>
+public class RomsSettings
+{
+	[Required(ErrorMessage = "ROMs root directory is required")]
+	public string RootDirectory { get; set; } = string.Empty;
+}

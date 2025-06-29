@@ -76,6 +76,60 @@
 					</EditForm>
 				</div>
 			</MudTabPanel>
+			<MudTabPanel Text="ROMs Configuration">
+				<div class="mt-4">
+					<EditForm Model="_romsSettings" OnValidSubmit="SaveRomsSettings">
+						<DataAnnotationsValidator />
+
+						<MudTextField @bind-Value="_romsSettings.RootDirectory"
+									  Label="ROMs Root Directory"
+									  Variant="Variant.Outlined"
+									  Margin="Margin.Normal"
+									  FullWidth="true"
+									  Required="true"
+									  HelperText="The root directory where your ROM files are located (e.g., C:\Games\ROMs or /home/user/roms)"
+									  For="@(() => _romsSettings.RootDirectory)" />
+
+						@if (!string.IsNullOrEmpty(_errorMessage))
+						{
+							<MudAlert Severity="Severity.Error" Class="mt-4">
+								@_errorMessage
+							</MudAlert>
+						}
+
+						@if (!string.IsNullOrEmpty(_successMessage))
+						{
+							<MudAlert Severity="Severity.Success" Class="mt-4">
+								@_successMessage
+							</MudAlert>
+						}
+
+						<div class="d-flex justify-space-between mt-6">
+							<MudButton ButtonType="ButtonType.Submit"
+									   Variant="Variant.Filled"
+									   Color="Color.Primary"
+									   Disabled="_isLoading">
+								@if (_isLoading)
+								{
+									<MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+									<MudText Class="ms-2">Saving...</MudText>
+								}
+								else
+								{
+									<MudText>Save Settings</MudText>
+								}
+							</MudButton>
+
+							<MudButton Variant="Variant.Outlined"
+									   Color="Color.Secondary"
+									   OnClick="LoadRomsSettings"
+									   Disabled="_isLoading">
+								Reload Settings
+							</MudButton>
+						</div>
+					</EditForm>
+				</div>
+			</MudTabPanel>
 		</MudTabs>
 	</MudPaper>
 </MudContainer>

@@ -18,18 +18,26 @@ public partial class Settings : ComponentBase
 	[Inject]AuthenticationStateProvider AuthenticationStateProvider { get; set; } = null!;
 
 	private IgdbSettings _igdbSettings = new();
+	private RomsSettings _romsSettings = new();
 	private string _errorMessage = string.Empty;
 	private string _successMessage = string.Empty;
 	private bool _isLoading = false;
 
 	private const string IgdbClientIdKey = "igdb.clientId";
 	private const string IgdbClientSecretKey = "igdb.clientSecret";
+	private const string RomsRootKey = "roms.root";
 
 
 	protected override async Task OnInitializedAsync()
 	{
 		var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+		await LoadSettings();
+	}
+
+	private async Task LoadSettings()
+	{
 		await LoadIgdbSettings();
+		await LoadRomsSettings();
 	}
 
 	private async Task LoadIgdbSettings()
@@ -56,7 +64,33 @@ public partial class Settings : ComponentBase
 		}
 		catch (Exception ex)
 		{
-			_errorMessage = $"Error loading settings: {ex.Message}";
+			_errorMessage = $"Error loading IGDB settings: {ex.Message}";
+		}
+		finally
+		{
+			_isLoading = false;
+			StateHasChanged();
+		}
+	}
+
+	private async Task LoadRomsSettings()
+	{
+		_isLoading = true;
+		_errorMessage = string.Empty;
+		_successMessage = string.Empty;
+
+		try
+		{
+			// Load ROMs root directory
+			GetRuntimeSettingResponse romsRootResponse = await SettingsService.GetInsecureSettingAsync(RomsRootKey);
+			if (romsRootResponse.Success && romsRootResponse.Setting is not null)
+			{
+				_romsSettings.RootDirectory = romsRootResponse.Setting.Value;
+			}
+		}
+		catch (Exception ex)
+		{
+			_errorMessage = $"Error loading ROMs settings: {ex.Message}";
 		}
 		finally
 		{
@@ -93,7 +127,36 @@ public partial class Settings : ComponentBase
 		}
 		catch (Exception ex)
 		{
-			_errorMessage = $"Error saving settings: {ex.Message}";
+			_errorMessage = $"Error saving IGDB settings: {ex.Message}";
+		}
+		finally
+		{
+			_isLoading = false;
+			StateHasChanged();
+		}
+	}
+
+	private async Task SaveRomsSettings()
+	{
+		_isLoading = true;
+		_errorMessage = string.Empty;
+		_successMessage = string.Empty;
+
+		try
+		{
+			// Save ROMs root directory
+			SetRuntimeSettingResponse romsRootResponse = await SettingsService.SetInsecureSettingAsync(RomsRootKey, _romsSettings.RootDirectory);
+			if (!romsRootResponse.Success)
+			{
+				_errorMessage = $"Failed to save ROMs root directory: {romsRootResponse.ErrorMessage}";
+				return;
+			}
+
+			_successMessage = "ROMs settings saved successfully!";
+		}
+		catch (Exception ex)
+		{
+			_errorMessage = $"Error saving ROMs settings: {ex.Message}";
 		}
 		finally
 		{
