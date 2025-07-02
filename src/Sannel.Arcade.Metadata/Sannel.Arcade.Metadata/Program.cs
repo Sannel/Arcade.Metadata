@@ -25,6 +25,10 @@ if (File.Exists(userConfigFile))
 	builder.Configuration.AddJsonFile(userConfigFile, optional: true, reloadOnChange: true);
 }
 
+builder.Services.AddMediatR(cfg => {
+	cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
+});
+
 // Configure authentication settings
 builder.Services.Configure<AuthenticationConfig>(
 	builder.Configuration.GetSection("Authentication"));
