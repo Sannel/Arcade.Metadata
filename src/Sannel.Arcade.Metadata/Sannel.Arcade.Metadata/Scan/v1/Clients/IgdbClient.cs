@@ -19,7 +19,7 @@ public class IgdbClient : IMetadataClient, IDisposable
 	private readonly SemaphoreSlim _authSemaphore = new(1,1);
 	private IGDBClient? _client;
 
-	public string ProviderName => throw new NotImplementedException();
+	public string ProviderName => nameof(IgdbClient);
 
 	public IgdbClient(IMediator mediator)
 	{

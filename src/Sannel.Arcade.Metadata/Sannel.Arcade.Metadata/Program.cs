@@ -11,6 +11,7 @@ using Sannel.Arcade.Metadata.Auth.v1.Models;
 using Sannel.Arcade.Metadata.Settings.v1;
 using Sannel.Arcade.Metadata.Client.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Sannel.Arcade.Metadata.Scan.v1;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,7 +49,14 @@ builder.Services.AddAuthentication(options =>
 	.AddCookie(CookieAuthenticationDefaults.AuthenticationScheme);
 
 builder.Services.AddAuthorization();
+
+// Setup services
 SettingsSliceSetup.Setup(
+	builder.Environment,
+	builder.Configuration,
+	builder.Services);
+
+ScanSetup.Setup(
 	builder.Environment,
 	builder.Configuration,
 	builder.Services);

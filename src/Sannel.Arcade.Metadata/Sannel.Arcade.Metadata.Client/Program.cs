@@ -12,6 +12,9 @@ builder.Services.AddMudServices();
 // Add settings service
 builder.Services.AddScoped<ISettingsService, SettingsService>();
 
+// Add scan service
+builder.Services.AddScoped<IScanService, ScanService>();
+
 // Add authorization services
 builder.Services.AddAuthorizationCore();
 builder.Services.AddCascadingAuthenticationState()

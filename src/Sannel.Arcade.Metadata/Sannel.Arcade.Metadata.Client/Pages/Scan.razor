@@ -1,0 +1,107 @@
+@page "/scan"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@using Sannel.Arcade.Metadata.Client.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize]
+
+<PageTitle>ROM Scanning</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium">
+	<MudPaper Class="pa-8 mt-4" Elevation="4">
+		<MudText Typo="Typo.h4" Align="Align.Left" GutterBottom="true">
+			ROM Metadata Scanning
+		</MudText>
+
+		<MudText Typo="Typo.body1" Class="mb-4">
+			Use this page to start scanning your ROM collection for metadata. The scan will look for ROM files in your configured ROMs directory and attempt to match them with game information from IGDB.
+		</MudText>
+
+		<MudCard Class="mb-4">
+			<MudCardContent>
+				<MudText Typo="Typo.h6" GutterBottom="true">Current Status</MudText>
+				<MudText Typo="Typo.body2" Color="@(_scanStatus.IsScanning ? Color.Success : Color.Default)">
+					@(_scanStatus.IsScanning ? "Scanning is currently active" : "Scanning is not active")
+				</MudText>
+				@if (!string.IsNullOrEmpty(_scanStatus.Message))
+				{
+					<MudText Typo="Typo.body2" Class="mt-2">
+						@_scanStatus.Message
+					</MudText>
+				}
+			</MudCardContent>
+		</MudCard>
+
+		@if (!string.IsNullOrEmpty(_errorMessage))
+		{
+			<MudAlert Severity="Severity.Error" Class="mb-4">
+				@_errorMessage
+			</MudAlert>
+		}
+
+		@if (!string.IsNullOrEmpty(_successMessage))
+		{
+			<MudAlert Severity="Severity.Success" Class="mb-4">
+				@_successMessage
+			</MudAlert>
+		}
+
+		<div class="d-flex gap-4">
+			<MudButton Variant="Variant.Filled"
+					   Color="Color.Primary"
+					   OnClick="StartScan"
+					   Disabled="_isLoading || _scanStatus.IsScanning"
+					   StartIcon="@Icons.Material.Filled.PlayArrow">
+				@if (_isLoading)
+				{
+					<MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+					<MudText Class="ms-2">Starting...</MudText>
+				}
+				else
+				{
+					<MudText>Start Scan</MudText>
+				}
+			</MudButton>
+
+			<MudButton Variant="Variant.Outlined"
+					   Color="Color.Secondary"
+					   OnClick="StopScan"
+					   Disabled="_isLoading || !_scanStatus.IsScanning"
+					   StartIcon="@Icons.Material.Filled.Stop">
+				Stop Scan
+			</MudButton>
+
+			<MudButton Variant="Variant.Text"
+					   Color="Color.Info"
+					   OnClick="RefreshStatus"
+					   Disabled="_isLoading"
+					   StartIcon="@Icons.Material.Filled.Refresh">
+				Refresh Status
+			</MudButton>
+		</div>
+
+		<MudCard Class="mt-6">
+			<MudCardContent>
+				<MudText Typo="Typo.h6" GutterBottom="true">How ROM Scanning Works</MudText>
+				<MudStack Spacing="2">
+					<div class="d-flex align-center">
+						<MudIcon Icon="@Icons.Material.Filled.Folder" Class="mr-3" />
+						<MudText>Scans your configured ROMs directory for supported file types</MudText>
+					</div>
+					<div class="d-flex align-center">
+						<MudIcon Icon="@Icons.Material.Filled.Search" Class="mr-3" />
+						<MudText>Extracts game names from ROM filenames (removing region tags like (USA), (Europe), etc.)</MudText>
+					</div>
+					<div class="d-flex align-center">
+						<MudIcon Icon="@Icons.Material.Filled.CloudSync" Class="mr-3" />
+						<MudText>Searches IGDB database for matching game metadata</MudText>
+					</div>
+					<div class="d-flex align-center">
+						<MudIcon Icon="@Icons.Material.Filled.Save" Class="mr-3" />
+						<MudText>Saves metadata as JSON files next to your ROM files</MudText>
+					</div>
+				</MudStack>
+			</MudCardContent>
+		</MudCard>
+	</MudPaper>
+</MudContainer>
