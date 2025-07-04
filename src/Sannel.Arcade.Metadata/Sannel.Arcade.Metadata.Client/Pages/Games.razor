@@ -1,0 +1,167 @@
+@page "/games/{platform}"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@using Sannel.Arcade.Metadata.Client.Services
+@using Sannel.Arcade.Metadata.Client.Models
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize]
+
+<PageTitle>Games - @Platform</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge">
+	<MudPaper Class="pa-4 mt-4" Elevation="2">
+		<div class="d-flex align-center justify-space-between mb-4">
+			<div class="d-flex align-center">
+				<MudButton Variant="Variant.Text" 
+						   StartIcon="@Icons.Material.Filled.ArrowBack" 
+						   OnClick="BackToCollection"
+						   Class="mr-3">
+					Back to Collection
+				</MudButton>
+				<MudText Typo="Typo.h4">
+					@Platform Games
+				</MudText>
+			</div>
+			<MudChip T="string" Color="Color.Primary" Variant="Variant.Filled">
+				@_filteredGames.Count games
+			</MudChip>
+		</div>
+
+		@if (_isLoading)
+		{
+			<div class="d-flex justify-center align-center" style="height: 200px;">
+				<MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+			</div>
+		}
+		else if (!string.IsNullOrEmpty(_errorMessage))
+		{
+			<MudAlert Severity="Severity.Error" Class="mb-4">
+				@_errorMessage
+			</MudAlert>
+		}
+		else if (_gamesResponse.Success)
+		{
+			<MudTextField @bind-Value="_searchText"
+						  Placeholder="Search games..."
+						  Adornment="Adornment.Start"
+						  AdornmentIcon="@Icons.Material.Filled.Search"
+						  IconSize="Size.Medium"
+						  Class="mb-4"
+						  Immediate="true"
+						  DebounceInterval="300"
+						  OnDebounceIntervalElapsed="OnSearchTextChanged" />
+
+			@if (_filteredGames.Count == 0)
+			{
+				<MudPaper Class="pa-8" Elevation="0">
+					<div class="d-flex flex-column align-center">
+						<MudIcon Icon="@Icons.Material.Filled.VideogameAssetOff" Size="Size.Large" Color="Color.Default" Class="mb-4" />
+						<MudText Typo="Typo.h6" Color="Color.Default">
+							@(string.IsNullOrWhiteSpace(_searchText) ? "No games found" : "No games match your search")
+						</MudText>
+						<MudText Typo="Typo.body2" Color="Color.Default" Class="mt-2">
+							@(string.IsNullOrWhiteSpace(_searchText) ? 
+								"Try scanning your ROM collection to add games." : 
+								"Try a different search term.")
+						</MudText>
+					</div>
+				</MudPaper>
+			}
+			else
+			{
+				<MudGrid>
+					@foreach (var game in _filteredGames)
+					{
+						<MudItem xs="12" sm="6" md="4" lg="3">
+							<MudCard Class="h-100 game-card">
+								@if (!string.IsNullOrEmpty(game.CoverUrl))
+								{
+									<MudCardMedia Image="@game.CoverUrl" 
+												  Height="200" 
+												  Class="game-cover-image"
+												  @onerror="@(() => HandleCoverImageError(game))" />
+								}
+								else
+								{
+									<div class="d-flex justify-center align-center game-cover-placeholder" style="height: 200px; background-color: var(--mud-palette-surface-variant);">
+										<MudIcon Icon="@Icons.Material.Filled.VideogameAsset" Size="Size.Large" Color="Color.Default" />
+									</div>
+								}
+								<MudCardContent>
+									<MudText Typo="Typo.h6" Class="mb-2">@game.Name</MudText>
+									
+									@if (!string.IsNullOrEmpty(game.Region))
+									{
+										<MudChip T="string" Size="Size.Small" Color="Color.Info" Class="mb-2">
+											@game.Region
+										</MudChip>
+									}
+
+									@if (game.Genres.Count > 0)
+									{
+										<div class="mb-2">
+											@foreach (var genre in game.Genres.Take(3))
+											{
+												<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="mr-1 mb-1">
+													@genre
+												</MudChip>
+											}
+										</div>
+									}
+
+									@if (!string.IsNullOrEmpty(game.Description))
+									{
+										<MudText Typo="Typo.body2" Class="game-description">
+											@(game.Description.Length > 100 ? $"{game.Description[..100]}..." : game.Description)
+										</MudText>
+									}
+								</MudCardContent>
+								<MudCardActions>
+									<div class="d-flex justify-space-between align-center w-100">
+										<MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Text">
+											@game.MetadataProvider
+										</MudChip>
+										@if (game.ArtworkUrls.Count > 0 || game.ScreenShots.Count > 0)
+										{
+											<MudTooltip Text="@($"{game.ArtworkUrls.Count} artwork(s), {game.ScreenShots.Count} screenshot(s)")">
+												<MudIconButton Icon="@Icons.Material.Filled.Image" Size="Size.Small" />
+											</MudTooltip>
+										}
+									</div>
+								</MudCardActions>
+							</MudCard>
+						</MudItem>
+					}
+				</MudGrid>
+			}
+		}
+	</MudPaper>
+</MudContainer>
+
+<style>
+	.game-description {
+		display: -webkit-box;
+		-webkit-line-clamp: 3;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+
+	.game-card:hover {
+		transform: translateY(-2px);
+		transition: transform 0.2s ease-in-out;
+		box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+	}
+
+	.game-cover-image {
+		object-fit: cover;
+		transition: transform 0.2s ease-in-out;
+	}
+
+	.game-cover-image:hover {
+		transform: scale(1.02);
+	}
+
+	.game-cover-placeholder {
+		border-radius: 4px;
+	}
+</style>

@@ -15,6 +15,9 @@ builder.Services.AddScoped<ISettingsService, SettingsService>();
 // Add scan service
 builder.Services.AddScoped<IScanService, ScanService>();
 
+// Add metadata service
+builder.Services.AddScoped<IMetadataService, MetadataService>();
+
 // Add authorization services
 builder.Services.AddAuthorizationCore();
 builder.Services.AddCascadingAuthenticationState()

@@ -19,29 +19,53 @@
 
 		<MudCard Class="mb-4">
 			<MudCardContent>
-				<MudText Typo="Typo.h6" GutterBottom="true">Current Status</MudText>
-				<MudText Typo="Typo.body2" Color="@(_scanStatus.IsScanning ? Color.Success : Color.Default)">
-					@(_scanStatus.IsScanning ? "Scanning is currently active" : "Scanning is not active")
-				</MudText>
-				@if (!string.IsNullOrEmpty(_scanStatus.Message))
-				{
-					<MudText Typo="Typo.body2" Class="mt-2">
-						@_scanStatus.Message
-					</MudText>
-				}
+				<div class="d-flex align-center justify-space-between">
+					<div>
+						<MudText Typo="Typo.h6" GutterBottom="true">Current Status</MudText>
+						<div class="d-flex align-center">
+							@if (_scanStatus.IsScanning)
+							{
+								<MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" Class="mr-3" />
+								<MudText Typo="Typo.body2" Color="Color.Primary">
+									Scanning ROM collection...
+								</MudText>
+							}
+							else
+							{
+								<MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Class="mr-3" />
+								<MudText Typo="Typo.body2" Color="Color.Default">
+									Scanning is not active
+								</MudText>
+							}
+						</div>
+						@if (!string.IsNullOrEmpty(_scanStatus.Message))
+						{
+							<MudText Typo="Typo.body2" Class="mt-2">
+								@_scanStatus.Message
+							</MudText>
+						}
+					</div>
+					@if (_scanStatus.IsScanning)
+					{
+						<MudChip T="string" Color="Color.Primary" Variant="Variant.Filled">
+							<MudProgressCircular Color="Color.Inherit" Size="Size.Small" Indeterminate="true" Class="mr-2" />
+							Active
+						</MudChip>
+					}
+				</div>
 			</MudCardContent>
 		</MudCard>
 
 		@if (!string.IsNullOrEmpty(_errorMessage))
 		{
-			<MudAlert Severity="Severity.Error" Class="mb-4">
+			<MudAlert Severity="Severity.Error" Class="mb-4" CloseIcon="@Icons.Material.Filled.Close" ShowCloseIcon="true" CloseIconClicked="() => _errorMessage = string.Empty">
 				@_errorMessage
 			</MudAlert>
 		}
 
 		@if (!string.IsNullOrEmpty(_successMessage))
 		{
-			<MudAlert Severity="Severity.Success" Class="mb-4">
+			<MudAlert Severity="Severity.Success" Class="mb-4" CloseIcon="@Icons.Material.Filled.Close" ShowCloseIcon="true" CloseIconClicked="() => _successMessage = string.Empty">
 				@_successMessage
 			</MudAlert>
 		}
@@ -51,11 +75,16 @@
 					   Color="Color.Primary"
 					   OnClick="StartScan"
 					   Disabled="_isLoading || _scanStatus.IsScanning"
-					   StartIcon="@Icons.Material.Filled.PlayArrow">
+					   StartIcon="@(_scanStatus.IsScanning ? Icons.Material.Filled.Sync : Icons.Material.Filled.PlayArrow)">
 				@if (_isLoading)
 				{
 					<MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
 					<MudText Class="ms-2">Starting...</MudText>
+				}
+				else if (_scanStatus.IsScanning)
+				{
+					<MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+					<MudText Class="ms-2">Scanning...</MudText>
 				}
 				else
 				{
@@ -98,7 +127,11 @@
 					</div>
 					<div class="d-flex align-center">
 						<MudIcon Icon="@Icons.Material.Filled.Save" Class="mr-3" />
-						<MudText>Saves metadata as JSON files next to your ROM files</MudText>
+						<MudText>Saves metadata as JSON files with images in .metadata folders</MudText>
+					</div>
+					<div class="d-flex align-center">
+						<MudIcon Icon="@Icons.Material.Filled.CreateNewFolder" Class="mr-3" />
+						<MudText>Creates simple metadata for games not found in IGDB database</MudText>
 					</div>
 				</MudStack>
 			</MudCardContent>

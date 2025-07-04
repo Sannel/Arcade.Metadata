@@ -6,7 +6,7 @@ using Sannel.Arcade.Metadata.Client.Services;
 namespace Sannel.Arcade.Metadata.Client.Pages;
 
 [Authorize]
-public partial class Scan : ComponentBase
+public partial class Scan : ComponentBase, IDisposable
 {
 	[Inject] private IScanService ScanService { get; set; } = null!;
 	[Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = null!;
@@ -15,11 +15,57 @@ public partial class Scan : ComponentBase
 	private string _errorMessage = string.Empty;
 	private string _successMessage = string.Empty;
 	private bool _isLoading = false;
+	private Timer? _statusPollingTimer;
+	private bool _wasScanningPreviously = false;
 
 	protected override async Task OnInitializedAsync()
 	{
 		var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
 		await RefreshStatus();
+		StartStatusPolling();
+	}
+
+	private void StartStatusPolling()
+	{
+		// Poll status every 2 seconds when scanning is active
+		_statusPollingTimer = new Timer(async _ => await PollScanStatus(), null, TimeSpan.Zero, TimeSpan.FromSeconds(2));
+	}
+
+	private async Task PollScanStatus()
+	{
+		if (_isLoading) return; // Don't poll if we're already loading
+
+		try
+		{
+			var newStatus = await ScanService.GetScanStatusAsync();
+			
+			// Check if scan just completed
+			if (_wasScanningPreviously && newStatus.Success && !newStatus.IsScanning)
+			{
+				_successMessage = "Scan completed successfully!";
+				_errorMessage = string.Empty;
+				await InvokeAsync(StateHasChanged);
+			}
+			
+			// Update status and track previous state
+			_wasScanningPreviously = _scanStatus.IsScanning;
+			_scanStatus = newStatus;
+			
+			if (!_scanStatus.Success && !_isLoading)
+			{
+				_errorMessage = $"Failed to get scan status: {_scanStatus.Message}";
+			}
+			
+			await InvokeAsync(StateHasChanged);
+		}
+		catch (Exception ex)
+		{
+			if (!_isLoading)
+			{
+				_errorMessage = $"Error polling scan status: {ex.Message}";
+				await InvokeAsync(StateHasChanged);
+			}
+		}
 	}
 
 	private async Task StartScan()
@@ -35,6 +81,7 @@ public partial class Scan : ComponentBase
 			if (success)
 			{
 				_successMessage = "Scan started successfully!";
+				_wasScanningPreviously = false; // Reset to detect completion
 				await RefreshStatus();
 			}
 			else
@@ -107,5 +154,10 @@ public partial class Scan : ComponentBase
 			_isLoading = false;
 			StateHasChanged();
 		}
+	}
+
+	public void Dispose()
+	{
+		_statusPollingTimer?.Dispose();
 	}
 }

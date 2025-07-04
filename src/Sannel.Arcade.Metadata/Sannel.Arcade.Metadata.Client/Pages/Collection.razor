@@ -1,0 +1,189 @@
+@page "/collection"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@using Sannel.Arcade.Metadata.Client.Services
+@using Sannel.Arcade.Metadata.Client.Models
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize]
+
+<PageTitle>Game Collection</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large">
+	<MudPaper Class="pa-6 mt-4" Elevation="4">
+		<div class="d-flex align-center justify-space-between mb-4">
+			<MudText Typo="Typo.h4">
+				Game Collection
+			</MudText>
+			<MudButton Variant="Variant.Outlined"
+					   Color="Color.Info"
+					   OnClick="RefreshPlatforms"
+					   Disabled="_isLoading"
+					   StartIcon="@Icons.Material.Filled.Refresh">
+				Refresh
+			</MudButton>
+		</div>
+
+		<MudText Typo="Typo.body1" Class="mb-4">
+			Browse your ROM collection by platform. Each platform shows the number of games with metadata.
+		</MudText>
+
+		@if (_isLoading)
+		{
+			<div class="d-flex justify-center align-center" style="height: 200px;">
+				<MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+			</div>
+		}
+		else if (!string.IsNullOrEmpty(_errorMessage))
+		{
+			<MudAlert Severity="Severity.Error" Class="mb-4">
+				@_errorMessage
+			</MudAlert>
+			
+			<div class="d-flex justify-center">
+				<MudButton Variant="Variant.Filled"
+						   Color="Color.Primary"
+						   OnClick="NavigateToScan"
+						   StartIcon="@Icons.Material.Filled.Search">
+					Scan ROMs Collection
+				</MudButton>
+			</div>
+		}
+		else if (_platformsResponse.Success)
+		{
+			@if (_platformsResponse.Platforms.Count == 0)
+			{
+				<MudPaper Class="pa-8" Elevation="0">
+					<div class="d-flex flex-column align-center">
+						<MudIcon Icon="@Icons.Material.Filled.FolderOff" Size="Size.Large" Color="Color.Default" Class="mb-4" />
+						<MudText Typo="Typo.h6" Color="Color.Default">
+							No platforms found
+						</MudText>
+						<MudText Typo="Typo.body2" Color="Color.Default" Class="mt-2 mb-4">
+							No ROM platforms were found in your configured ROMs directory.
+						</MudText>
+						<MudButton Variant="Variant.Filled"
+								   Color="Color.Primary"
+								   OnClick="NavigateToScan"
+								   StartIcon="@Icons.Material.Filled.Search">
+							Scan ROMs Collection
+						</MudButton>
+					</div>
+				</MudPaper>
+			}
+			else
+			{
+				<MudGrid>
+					@foreach (var platform in _platformsResponse.Platforms)
+					{
+						<MudItem xs="12" sm="6" md="4" lg="3">
+							<MudCard Class="h-100 platform-card" Style="cursor: pointer;" @onclick="() => NavigateToGames(platform.Name)">
+								<MudCardContent Class="text-center pa-3">
+									@if (!string.IsNullOrEmpty(platform.CoverImageUrl))
+									{
+										<div class="d-flex justify-center mb-3 platform-image-container">
+											<img src="@platform.CoverImageUrl" 
+												 alt="@platform.Name cover" 
+												 class="platform-cover-image"
+												 @onerror="@(() => HandleImageError(platform))" />
+										</div>
+									}
+									else
+									{
+										<div class="d-flex justify-center mb-3">
+											<MudIcon Icon="@GetPlatformIcon(platform.Name)" Size="Size.Large" Color="Color.Primary" />
+										</div>
+									}
+									<MudText Typo="Typo.h6" Class="mb-2">
+										@platform.Name
+									</MudText>
+									<MudChip T="string" Color="Color.Success" Variant="Variant.Filled" Size="Size.Small">
+										@platform.GameCount games
+									</MudChip>
+								</MudCardContent>
+								<MudCardActions Class="justify-center">
+									<MudButton Variant="Variant.Text"
+											   Color="Color.Primary"
+											   StartIcon="@Icons.Material.Filled.VideogameAsset">
+										View Games
+									</MudButton>
+								</MudCardActions>
+							</MudCard>
+						</MudItem>
+					}
+				</MudGrid>
+
+				<MudDivider Class="my-6" />
+
+				<div class="d-flex justify-center">
+					<MudCard Class="pa-4" Elevation="2">
+						<MudCardContent>
+							<div class="d-flex align-center">
+								<MudIcon Icon="@Icons.Material.Filled.Info" Color="Color.Info" Class="mr-3" />
+								<div>
+									<MudText Typo="Typo.body2">
+										Total: <strong>@_platformsResponse.Platforms.Sum(p => p.GameCount)</strong> games across <strong>@_platformsResponse.Platforms.Count</strong> platforms
+									</MudText>
+									<MudText Typo="Typo.caption">
+										Click on a platform to view its games, or scan your collection to add more metadata.
+									</MudText>
+								</div>
+							</div>
+						</MudCardContent>
+					</MudCard>
+				</div>
+			}
+		}
+	</MudPaper>
+</MudContainer>
+
+<style>
+	.platform-card:hover {
+		transform: translateY(-2px);
+		transition: transform 0.2s ease-in-out;
+		box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+	}
+
+	.platform-image-container {
+		height: 80px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+	}
+
+	.platform-cover-image {
+		max-width: 100%;
+		max-height: 100%;
+		object-fit: contain;
+		border-radius: 4px;
+		box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+	}
+
+	.platform-cover-image:hover {
+		transform: scale(1.05);
+		transition: transform 0.2s ease-in-out;
+	}
+</style>
+
+@code {
+	private string GetPlatformIcon(string platformName)
+	{
+		return platformName.ToLowerInvariant() switch
+		{
+			"nes" => Icons.Material.Filled.Gamepad,
+			"snes" => Icons.Material.Filled.SportsEsports,
+			"n64" => Icons.Material.Filled.VideogameAsset,
+			"wii" => Icons.Material.Filled.Gamepad,
+			"wiiu" => Icons.Material.Filled.SportsEsports,
+			"3ds" => Icons.Material.Filled.PhoneAndroid,
+			_ => Icons.Material.Filled.VideogameAsset
+		};
+	}
+
+	private void HandleImageError(PlatformInfo platform)
+	{
+		// If image fails to load, clear the CoverImageUrl so it falls back to icon
+		platform.CoverImageUrl = null;
+		StateHasChanged();
+	}
+}

@@ -1,25 +1,136 @@
 @page "/app"
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 @using Sannel.Arcade.Metadata.Client.Components
+@using Microsoft.AspNetCore.Authorization
+@inject NavigationManager Navigation
 
 <PageTitle>Home</PageTitle>
 
 <CascadingAuthenticationState>
-	<div class="d-flex justify-content-between align-items-center mb-4">
-		<MudText Typo="Typo.h3">Welcome to Arcade Metadata</MudText>
-		<AuthDisplay />
-	</div>
+	<MudContainer MaxWidth="MaxWidth.Large">
+		<div class="d-flex justify-content-between align-items-center mb-4">
+			<MudText Typo="Typo.h3">Welcome to Arcade Metadata</MudText>
+			<AuthDisplay />
+		</div>
 
-	<AuthorizeView>
-		<Authorized>
-			<MudAlert Severity="Severity.Success">
-				Hello @context.User.Identity?.Name! You are successfully logged in.
-			</MudAlert>
-		</Authorized>
-		<NotAuthorized>
-			<MudAlert Severity="Severity.Info">
-				Please log in to access the application features.
-			</MudAlert>
-		</NotAuthorized>
-	</AuthorizeView>
+		<AuthorizeView>
+			<Authorized>
+				<MudAlert Severity="Severity.Success" Class="mb-4">
+					Hello @context.User.Identity?.Name! You are successfully logged in.
+				</MudAlert>
+
+				<MudGrid>
+					<MudItem xs="12" md="6">
+						<MudCard>
+							<MudCardContent>
+								<div class="d-flex align-center mb-3">
+									<MudIcon Icon="@Icons.Material.Filled.VideoLibrary" Color="Color.Primary" Size="Size.Large" Class="mr-3" />
+									<MudText Typo="Typo.h5">Game Collection</MudText>
+								</div>
+								<MudText Typo="Typo.body2" Class="mb-3">
+									Browse your ROM collection by platform and view game metadata including covers, descriptions, and genres.
+								</MudText>
+							</MudCardContent>
+							<MudCardActions>
+								<MudButton Variant="Variant.Filled" 
+										   Color="Color.Primary" 
+										   StartIcon="@Icons.Material.Filled.VideoLibrary"
+										   OnClick="NavigateToCollection">
+									View Collection
+								</MudButton>
+							</MudCardActions>
+						</MudCard>
+					</MudItem>
+
+					<MudItem xs="12" md="6">
+						<MudCard>
+							<MudCardContent>
+								<div class="d-flex align-center mb-3">
+									<MudIcon Icon="@Icons.Material.Filled.Search" Color="Color.Secondary" Size="Size.Large" Class="mr-3" />
+									<MudText Typo="Typo.h5">ROM Scanning</MudText>
+								</div>
+								<MudText Typo="Typo.body2" Class="mb-3">
+									Scan your ROM directories to automatically fetch metadata from IGDB including game information, covers, and screenshots.
+								</MudText>
+							</MudCardContent>
+							<MudCardActions>
+								<MudButton Variant="Variant.Filled" 
+										   Color="Color.Secondary" 
+										   StartIcon="@Icons.Material.Filled.Search"
+										   OnClick="NavigateToScan">
+									Start Scanning
+								</MudButton>
+							</MudCardActions>
+						</MudCard>
+					</MudItem>
+
+					<MudItem xs="12" md="6">
+						<MudCard>
+							<MudCardContent>
+								<div class="d-flex align-center mb-3">
+									<MudIcon Icon="@Icons.Material.Filled.Settings" Color="Color.Tertiary" Size="Size.Large" Class="mr-3" />
+									<MudText Typo="Typo.h5">Settings</MudText>
+								</div>
+								<MudText Typo="Typo.body2" Class="mb-3">
+									Configure your ROMs directory, IGDB API credentials, and other application settings.
+								</MudText>
+							</MudCardContent>
+							<MudCardActions>
+								<MudButton Variant="Variant.Outlined" 
+										   Color="Color.Tertiary" 
+										   StartIcon="@Icons.Material.Filled.Settings"
+										   OnClick="NavigateToSettings">
+									Configure Settings
+								</MudButton>
+							</MudCardActions>
+						</MudCard>
+					</MudItem>
+
+					<MudItem xs="12" md="6">
+						<MudCard>
+							<MudCardContent>
+								<div class="d-flex align-center mb-3">
+									<MudIcon Icon="@Icons.Material.Filled.Info" Color="Color.Info" Size="Size.Large" Class="mr-3" />
+									<MudText Typo="Typo.h5">Getting Started</MudText>
+								</div>
+								<MudText Typo="Typo.body2" Class="mb-3">
+									New to Arcade Metadata? Start by configuring your settings, then scan your ROM collection to build your game library.
+								</MudText>
+							</MudCardContent>
+							<MudCardActions>
+								<MudButton Variant="Variant.Text" 
+										   Color="Color.Info" 
+										   StartIcon="@Icons.Material.Filled.Settings"
+										   OnClick="NavigateToSettings">
+									Setup Guide
+								</MudButton>
+							</MudCardActions>
+						</MudCard>
+					</MudItem>
+				</MudGrid>
+			</Authorized>
+			<NotAuthorized>
+				<MudAlert Severity="Severity.Info">
+					Please log in to access the application features.
+				</MudAlert>
+			</NotAuthorized>
+		</AuthorizeView>
+	</MudContainer>
 </CascadingAuthenticationState>
+
+@code {
+	private void NavigateToCollection()
+	{
+		Navigation.NavigateTo("/collection");
+	}
+
+	private void NavigateToScan()
+	{
+		Navigation.NavigateTo("/scan");
+	}
+
+	private void NavigateToSettings()
+	{
+		Navigation.NavigateTo("/settings");
+	}
+}
