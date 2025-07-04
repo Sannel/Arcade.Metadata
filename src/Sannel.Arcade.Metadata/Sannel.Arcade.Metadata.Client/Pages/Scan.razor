@@ -28,6 +28,12 @@
 								<MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" Class="mr-3" />
 								<MudText Typo="Typo.body2" Color="Color.Primary">
 									Scanning ROM collection...
+									@if (_scanStatus.ForceRebuild)
+									{
+										<MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" Class="ml-2">
+											Force Rebuild
+										</MudChip>
+									}
 								</MudText>
 							}
 							else
@@ -69,6 +75,22 @@
 				@_successMessage
 			</MudAlert>
 		}
+
+		<MudCard Class="mb-4">
+			<MudCardContent>
+				<MudText Typo="Typo.h6" GutterBottom="true">Scan Options</MudText>
+				<MudCheckBox @bind-Value="_forceRebuild" 
+							 Color="Color.Warning" 
+							 Disabled="_scanStatus.IsScanning"
+							 Label="Force rebuild existing metadata">
+					Force rebuild existing metadata
+				</MudCheckBox>
+				<MudText Typo="Typo.body2" Class="mt-2" Color="Color.Default">
+					When enabled, the scan will regenerate metadata files even if they already exist. 
+					This is useful for updating existing games with newer metadata or images.
+				</MudText>
+			</MudCardContent>
+		</MudCard>
 
 		<div class="d-flex gap-4">
 			<MudButton Variant="Variant.Filled"
@@ -132,6 +154,10 @@
 					<div class="d-flex align-center">
 						<MudIcon Icon="@Icons.Material.Filled.CreateNewFolder" Class="mr-3" />
 						<MudText>Creates simple metadata for games not found in IGDB database</MudText>
+					</div>
+					<div class="d-flex align-center">
+						<MudIcon Icon="@Icons.Material.Filled.Update" Class="mr-3" />
+						<MudText>Force rebuild option allows regenerating existing metadata with latest information</MudText>
 					</div>
 				</MudStack>
 			</MudCardContent>

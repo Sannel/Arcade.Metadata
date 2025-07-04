@@ -6,6 +6,7 @@ public class ScanBackground : BackgroundService
 {
 	private readonly IServiceProvider _services;
 	public bool ShouldScan { get; set; } = false;
+	public bool ForceRebuild { get; set; } = false;
 
 	public ScanBackground(IServiceProvider services)
 	{
@@ -21,6 +22,7 @@ public class ScanBackground : BackgroundService
 			{
 				await BuildMetaDataAsync(stoppingToken);
 				ShouldScan = false; // Stop scanning after one run
+				ForceRebuild = false; // Reset force rebuild flag after scan
 			}
 		}
 	}
@@ -31,7 +33,7 @@ public class ScanBackground : BackgroundService
 		{
 			using var scope = _services.CreateScope();
 			var scanService = scope.ServiceProvider.GetRequiredService<IScanService>();
-			await scanService.ScanAsync(cancellationToken);
+			await scanService.ScanAsync(ForceRebuild, cancellationToken);
 		}
 		catch (Exception ex)
 		{

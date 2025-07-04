@@ -15,6 +15,7 @@ public partial class Scan : ComponentBase, IDisposable
 	private string _errorMessage = string.Empty;
 	private string _successMessage = string.Empty;
 	private bool _isLoading = false;
+	private bool _forceRebuild = false;
 	private Timer? _statusPollingTimer;
 	private bool _wasScanningPreviously = false;
 
@@ -77,10 +78,10 @@ public partial class Scan : ComponentBase, IDisposable
 
 		try
 		{
-			var success = await ScanService.StartScanAsync();
+			var success = await ScanService.StartScanAsync(_forceRebuild);
 			if (success)
 			{
-				_successMessage = "Scan started successfully!";
+				_successMessage = $"Scan started successfully{(_forceRebuild ? " with force rebuild enabled" : "")}!";
 				_wasScanningPreviously = false; // Reset to detect completion
 				await RefreshStatus();
 			}

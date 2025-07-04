@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using MediatR;
 using Sannel.Arcade.Metadata.Common.Settings;
@@ -40,6 +41,11 @@ public class FileScanService : IScanService
 
 	public async Task ScanAsync(CancellationToken cancellationToken)
 	{
+		await ScanAsync(false, cancellationToken);
+	}
+
+	public async Task ScanAsync(bool forceRebuild, CancellationToken cancellationToken)
+	{
 		await _metadataClient.AuthenticateAsync(cancellationToken);
 		var romsDirectory = await _mediator.Send(new GetSettingRequest()
 		{
@@ -59,7 +65,10 @@ public class FileScanService : IScanService
 
 			if(platformId != PlatformId.None)
 			{
-				await ScanFilesAsync(dir, platformId, cancellationToken);
+				await ScanFilesAsync(dir, platformId, forceRebuild, cancellationToken);
+				
+				// After scanning files for this platform, create the games.json file
+				await CreatePlatformGamesListAsync(dir, cancellationToken);
 			}
 		}
 	}
@@ -102,13 +111,99 @@ public class FileScanService : IScanService
 		if (string.IsNullOrEmpty(name))
 			return name;
 
-		// Remove trailing I or 1 characters (common in ROM naming for sequels)
+		 // Don't remove trailing sequence characters that are likely legitimate sequel indicators
+		// Check if the name contains common sequel patterns that should be preserved
+		var nameLower = name.ToLowerInvariant();
+		
+		// Patterns that indicate legitimate sequels (should NOT be removed)
+		var sequelPatterns = new[]
+		{
+			@"\s+(ii|iii|iv|v|vi|vii|viii|ix|x)$", // Roman numerals at end with space
+			@"\s+[2-9]$", // Numbers 2-9 at end with space
+			@"\s+(two|three|four|five|six|seven|eight|nine|ten)$", // Written numbers at end with space
+			@"[2-9]$", // Single digit at very end (like "Adventure Island 2")
+			@"\s*:\s*(ii|iii|iv|v|vi|vii|viii|ix|x)$", // Colon followed by roman numeral
+			@"\s*:\s*[2-9]$" // Colon followed by number
+		};
+
+		// If name matches sequel patterns, preserve it as-is
+		foreach (var pattern in sequelPatterns)
+		{
+			if (Regex.IsMatch(nameLower, pattern, RegexOptions.IgnoreCase))
+			{
+				return name; // Don't modify names that look like legitimate sequels
+			}
+		}
+
+		// Only remove trailing characters if they don't appear to be sequel indicators
+		// This handles cases like "GameNameI" where "I" might be extraneous
+		var originalName = name;
+		
+		// Remove trailing I or 1 characters only if they appear to be extraneous
+		// (not preceded by a space or other separator that would indicate a sequel)
 		while (name.Length > 0 && (name[^1] == 'I' || name[^1] == 'i' || name[^1] == '1'))
 		{
-			name = name[..^1].Trim();
+			// Check if removing this character would leave us with a reasonable name
+			var withoutLastChar = name[..^1].Trim();
+			
+			// Only remove if:
+			// 1. The character is not preceded by a space (indicating it's part of the base name)
+			// 2. The remaining name is substantial (more than 3 characters)
+			// 3. The character doesn't appear to be a legitimate sequel indicator
+			if (withoutLastChar.Length > 3 && 
+				name.Length > 1 && 
+				!char.IsWhiteSpace(name[^2]) &&
+				!IsLikelySequelIndicator(name, name.Length - 1))
+			{
+				name = withoutLastChar;
+			}
+			else
+			{
+				break; // Don't remove if it looks like a legitimate sequel indicator
+			}
 		}
 
 		return name;
+	}
+
+	/// <summary>
+	/// Determines if a character at a specific position is likely a sequel indicator that should be preserved.
+	/// </summary>
+	/// <param name="name">The full name string.</param>
+	/// <param name="position">The position of the character to check.</param>
+	/// <returns>True if the character appears to be a sequel indicator.</returns>
+	private static bool IsLikelySequelIndicator(string name, int position)
+	{
+		if (position < 0 || position >= name.Length)
+			return false;
+
+		var character = name[position];
+		
+		// If preceded by space, it's likely a sequel indicator
+		if (position > 0 && char.IsWhiteSpace(name[position - 1]))
+			return true;
+			
+		// If it's a number and the game name contains common sequel words
+		if (char.IsDigit(character))
+		{
+			var nameLower = name.ToLowerInvariant();
+			var baseGameWords = new[] { "adventure", "island", "mario", "zelda", "final", "fantasy", "dragon", "quest" };
+			
+			// If the name contains common game series words, preserve numbers
+			if (baseGameWords.Any(word => nameLower.Contains(word)))
+				return true;
+		}
+		
+		// If it's a roman numeral (I) and appears to be intentional
+		if ((character == 'I' || character == 'i') && position > 0)
+		{
+			// Check if it follows a pattern like "Name I" or "NameI" where Name is substantial
+			var beforeChar = name[position - 1];
+			if (char.IsWhiteSpace(beforeChar) || char.IsLetter(beforeChar))
+				return true;
+		}
+
+		return false;
 	}
 
 	private static int CalculateLevenshteinDistance(string source, string target)
@@ -168,9 +263,11 @@ public class FileScanService : IScanService
 			.Select(game => new
 			{
 				Game = game,
-				Similarity = CalculateSimilarity(gameName, game.Name),
-				IsExactMatch = string.Equals(gameName, game.Name, StringComparison.OrdinalIgnoreCase),
-				IsBaseVersion = IsBaseVersionOfGame(gameName, game.Name)
+				Similarity = CalculateBestSimilarity(gameName, game),
+				IsExactMatch = IsExactMatch(gameName, game),
+				IsBaseVersion = IsBaseVersionOfGame(gameName, game.Name) || game.AlternateNames.Any(altName => IsBaseVersionOfGame(gameName, altName)),
+				IsSequelMatch = IsSequelMatch(gameName, game),
+				HasSequelIndicator = ContainsSequelIndicator(gameName)
 			})
 			.ToList();
 
@@ -179,23 +276,39 @@ public class FileScanService : IScanService
 		if (exactMatch != null)
 			return exactMatch.Game;
 
-		// If no exact match, look for base version matches (e.g., "Adventure Island" when searching for stripped "Adventure Island")
-		var baseVersionMatches = scoredCandidates
-			.Where(x => x.IsBaseVersion && x.Similarity >= 0.8)
-			.OrderByDescending(x => x.Similarity)
-			.ToList();
-
-		if (baseVersionMatches.Count > 0)
+		// If the search name has sequel indicators, prioritize sequel matches
+		if (scoredCandidates.Any(x => x.HasSequelIndicator))
 		{
-			// Prefer games without version indicators in the title
-			var preferredBaseMatch = baseVersionMatches
-				.FirstOrDefault(x => !ContainsVersionIndicators(x.Game.Name));
-			
-			if (preferredBaseMatch != null)
-				return preferredBaseMatch.Game;
-			
-			// If all have version indicators, return the one with highest similarity
-			return baseVersionMatches.First().Game;
+			var sequelMatches = scoredCandidates
+				.Where(x => x.IsSequelMatch && x.Similarity >= 0.7)
+				.OrderByDescending(x => x.Similarity)
+				.ToList();
+
+			if (sequelMatches.Count > 0)
+				return sequelMatches.First().Game;
+		}
+
+		// If no exact match, look for base version matches (e.g., "Adventure Island" when searching for stripped "Adventure Island")
+		// But only if the search name doesn't have sequel indicators
+		if (!scoredCandidates.Any(x => x.HasSequelIndicator))
+		{
+			var baseVersionMatches = scoredCandidates
+				.Where(x => x.IsBaseVersion && x.Similarity >= 0.8)
+				.OrderByDescending(x => x.Similarity)
+				.ToList();
+
+			if (baseVersionMatches.Count > 0)
+			{
+				// Prefer games without version indicators in the title
+				var preferredBaseMatch = baseVersionMatches
+					.FirstOrDefault(x => !ContainsVersionIndicators(x.Game.Name));
+				
+				if (preferredBaseMatch != null)
+					return preferredBaseMatch.Game;
+				
+				// If all have version indicators, return the one with highest similarity
+				return baseVersionMatches.First().Game;
+			}
 		}
 
 		// Fall back to highest similarity match if above 70%
@@ -204,6 +317,176 @@ public class FileScanService : IScanService
 			.First();
 
 		return bestMatch.Similarity >= 0.7 ? bestMatch.Game : null;
+	}
+
+	/// <summary>
+	/// Checks if the search name contains sequel indicators.
+	/// </summary>
+	/// <param name="searchName">The name to check.</param>
+	/// <returns>True if the name contains sequel indicators.</returns>
+	private static bool ContainsSequelIndicator(string searchName)
+	{
+		var nameLower = searchName.ToLowerInvariant();
+		
+		var sequelPatterns = new[]
+		{
+			@"\b(ii|iii|iv|v|vi|vii|viii|ix|x)\b", // Roman numerals
+			@"\b[2-9]\b", // Numbers 2-9
+			@"\b(two|three|four|five|six|seven|eight|nine|ten)\b", // Written numbers
+			@":\s*(ii|iii|iv|v|vi|vii|viii|ix|x|[2-9])\b" // Colon followed by version
+		};
+
+		return sequelPatterns.Any(pattern => Regex.IsMatch(nameLower, pattern, RegexOptions.IgnoreCase));
+	}
+
+	/// <summary>
+	/// Checks if a game is a potential sequel match for the search name.
+	/// </summary>
+	/// <param name="searchName">The name being searched for.</param>
+	/// <param name="game">The game to check.</param>
+	/// <returns>True if the game appears to be a sequel match.</returns>
+	private static bool IsSequelMatch(string searchName, GameInfo game)
+	{
+		// Check main name
+		if (IsSequelMatchForName(searchName, game.Name))
+			return true;
+
+		// Check alternate names
+		return game.AlternateNames.Any(altName => IsSequelMatchForName(searchName, altName));
+	}
+
+	/// <summary>
+	/// Checks if a specific game name is a sequel match for the search name.
+	/// </summary>
+	/// <param name="searchName">The name being searched for.</param>
+	/// <param name="gameName">The game name to check.</param>
+	/// <returns>True if it's a sequel match.</returns>
+	private static bool IsSequelMatchForName(string searchName, string gameName)
+	{
+		if (string.IsNullOrEmpty(gameName))
+			return false;
+
+		var searchLower = searchName.ToLowerInvariant().Trim();
+		var gameLower = gameName.ToLowerInvariant().Trim();
+
+		// Extract sequel indicators from both names
+		var searchSequel = ExtractSequelIndicator(searchLower);
+		var gameSequel = ExtractSequelIndicator(gameLower);
+
+		// If both have sequel indicators, they should match
+		if (!string.IsNullOrEmpty(searchSequel) && !string.IsNullOrEmpty(gameSequel))
+		{
+			// Remove sequel indicators to compare base names
+			var searchBase = RemoveSequelIndicator(searchLower);
+			var gameBase = RemoveSequelIndicator(gameLower);
+
+			// Base names should be similar and sequel indicators should match
+			return CalculateSimilarity(searchBase, gameBase) >= 0.8 && 
+				   NormalizeSequelIndicator(searchSequel) == NormalizeSequelIndicator(gameSequel);
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Extracts sequel indicator from a game name.
+	/// </summary>
+	/// <param name="name">The game name.</param>
+	/// <returns>The sequel indicator or null if none found.</returns>
+	private static string? ExtractSequelIndicator(string name)
+	{
+		var sequelPatterns = new[]
+		{
+			@"\b(ii|iii|iv|v|vi|vii|viii|ix|x)(\b|$)", // Roman numerals
+			@"\b([2-9])(\b|$)", // Numbers 2-9
+			@"\b(two|three|four|five|six|seven|eight|nine|ten)(\b|$)", // Written numbers
+			@":\s*(ii|iii|iv|v|vi|vii|viii|ix|x|[2-9])(\b|$)" // Colon followed by version
+		};
+
+		foreach (var pattern in sequelPatterns)
+		{
+			var match = Regex.Match(name, pattern, RegexOptions.IgnoreCase);
+			if (match.Success)
+			{
+				return match.Groups[1].Value;
+			}
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Removes sequel indicator from a game name.
+	/// </summary>
+	/// <param name="name">The game name.</param>
+	/// <returns>The name without sequel indicator.</returns>
+	private static string RemoveSequelIndicator(string name)
+	{
+		var sequelPatterns = new[]
+		{
+			@"\s+(ii|iii|iv|v|vi|vii|viii|ix|x)(\b|$)", // Roman numerals with space
+			@"\s+([2-9])(\b|$)", // Numbers 2-9 with space
+			@"\s+(two|three|four|five|six|seven|eight|nine|ten)(\b|$)", // Written numbers with space
+			@"\s*:\s*(ii|iii|iv|v|vi|vii|viii|ix|x|[2-9])(\b|$)" // Colon followed by version
+		};
+
+		foreach (var pattern in sequelPatterns)
+		{
+			name = Regex.Replace(name, pattern, "", RegexOptions.IgnoreCase);
+		}
+
+		return name.Trim();
+	}
+
+	/// <summary>
+	/// Normalizes sequel indicators for comparison (e.g., "II" -> "2", "two" -> "2").
+	/// </summary>
+	/// <param name="sequelIndicator">The sequel indicator to normalize.</param>
+	/// <returns>The normalized sequel indicator.</returns>
+	private static string NormalizeSequelIndicator(string sequelIndicator)
+	{
+		if (string.IsNullOrEmpty(sequelIndicator))
+			return "";
+
+		var indicator = sequelIndicator.ToLowerInvariant();
+		
+		return indicator switch
+		{
+			"ii" or "two" => "2",
+			"iii" or "three" => "3",
+			"iv" or "four" => "4",
+			"v" or "five" => "5",
+			"vi" or "six" => "6",
+			"vii" or "seven" => "7",
+			"viii" or "eight" => "8",
+			"ix" or "nine" => "9",
+			"x" or "ten" => "10",
+			_ => indicator // Return as-is if already a number or unknown
+		};
+	}
+
+	private static double CalculateBestSimilarity(string searchName, GameInfo game)
+	{
+		// Calculate similarity against main name
+		var mainSimilarity = CalculateSimilarity(searchName, game.Name);
+		
+		// Calculate similarity against all alternate names
+		var alternateSimilarities = game.AlternateNames
+			.Select(altName => CalculateSimilarity(searchName, altName))
+			.DefaultIfEmpty(0.0);
+
+		// Return the highest similarity score
+		return Math.Max(mainSimilarity, alternateSimilarities.Max());
+	}
+
+	private static bool IsExactMatch(string searchName, GameInfo game)
+	{
+		// Check main name
+		if (string.Equals(searchName, game.Name, StringComparison.OrdinalIgnoreCase))
+			return true;
+
+		// Check alternate names
+		return game.AlternateNames.Any(altName => string.Equals(searchName, altName, StringComparison.OrdinalIgnoreCase));
 	}
 
 	private static bool IsBaseVersionOfGame(string searchName, string gameName)
@@ -452,13 +735,14 @@ public class FileScanService : IScanService
 		var jsonFilePath = GetMetadataFilePath(romFilePath, platformDirectory);
 		var imagesDirectory = GetImagesDirectory(romFilePath, platformDirectory);
 		var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(romFilePath);
+		var romFileName = Path.GetFileName(romFilePath);
 
 		// Download images with fallback to original size if largest size fails
 		var coverImagePath = await DownloadImageWithFallbackAsync(gameInfo.CoverUrl, imagesDirectory, $"{fileNameWithoutExtension}_cover", "cover", cancellationToken);
 		var artworkPaths = await DownloadImagesWithFallbackAsync(gameInfo.ArtworkUrls, imagesDirectory, $"{fileNameWithoutExtension}_artwork", "artwork", cancellationToken);
 		var screenshotPaths = await DownloadImagesWithFallbackAsync(gameInfo.ScreenShots, imagesDirectory, $"{fileNameWithoutExtension}_screenshot", "screenshot", cancellationToken);
 
-		// Create an anonymous object that includes the original GameInfo plus the region and local image paths
+		// Create an anonymous object that includes the original GameInfo plus the region, local image paths, and ROM file name
 		var gameMetadata = new
 		{
 			gameInfo.Name,
@@ -470,7 +754,9 @@ public class FileScanService : IScanService
 			ArtworkUrls = artworkPaths, // Use local paths instead of remote URLs
 			ScreenShots = screenshotPaths, // Use local paths instead of remote URLs
 			gameInfo.Genres,
-			Region = region // Add the region field
+			gameInfo.AlternateNames, // Include alternate names in metadata
+			Region = region, // Add the region field
+			RomFileName = romFileName // Add the ROM file name
 		};
 
 		var options = new JsonSerializerOptions
@@ -480,10 +766,16 @@ public class FileScanService : IScanService
 		};
 
 		var jsonContent = JsonSerializer.Serialize(gameMetadata, options);
-		await File.WriteAllTextAsync(jsonFilePath, jsonContent, cancellationToken);
+		await File.WriteAllTextAsync(jsonFilePath, jsonContent, Encoding.UTF8, cancellationToken);
 	}
 
 	private async Task ScanFilesAsync(string directory, PlatformId platformId,
+		CancellationToken cancellationToken)
+	{
+		await ScanFilesAsync(directory, platformId, false, cancellationToken);
+	}
+
+	private async Task ScanFilesAsync(string directory, PlatformId platformId, bool forceRebuild,
 		CancellationToken cancellationToken)
 	{
 		foreach (var file in Directory.EnumerateFiles(directory,"*.*", SearchOption.AllDirectories))
@@ -496,8 +788,8 @@ public class FileScanService : IScanService
 			{
 				// Check if metadata JSON already exists in .metadata folder
 				var jsonFilePath = GetMetadataFilePath(file, directory);
-				if (File.Exists(jsonFilePath))
-					continue; // Skip if metadata already exists
+				if (!forceRebuild && File.Exists(jsonFilePath))
+					continue; // Skip if metadata already exists and we're not forcing rebuild
 
 				// Extract region information from filename
 				var (cleanName, region) = ExtractRegionFromFileName(fileName);
@@ -517,6 +809,92 @@ public class FileScanService : IScanService
 		}
 	}
 
+	private async Task CreatePlatformGamesListAsync(string platformDirectory, CancellationToken cancellationToken)
+	{
+		var metadataDirectory = Path.Combine(platformDirectory, ".metadata");
+		var gamesListPath = Path.Combine(metadataDirectory, "games.json");
+		
+		// Create metadata directory if it doesn't exist
+		Directory.CreateDirectory(metadataDirectory);
+		
+		var gamesList = new List<object>();
+
+		if (Directory.Exists(metadataDirectory))
+		{
+			foreach (var jsonFile in Directory.EnumerateFiles(metadataDirectory, "*.json", SearchOption.AllDirectories))
+			{
+				if (cancellationToken.IsCancellationRequested)
+					break;
+
+				// Skip the games.json file itself
+				if (Path.GetFileName(jsonFile).Equals("games.json", StringComparison.OrdinalIgnoreCase))
+					continue;
+
+				try
+				{
+					var jsonContent = await File.ReadAllTextAsync(jsonFile, cancellationToken);
+					using var document = JsonDocument.Parse(jsonContent);
+					var root = document.RootElement;
+
+					// Extract basic game information
+					var gameEntry = new
+					{
+						Name = root.TryGetProperty("name", out var nameElement) ? nameElement.GetString() ?? "Unknown" : "Unknown",
+						Description = root.TryGetProperty("description", out var descElement) ? descElement.GetString() : null,
+						RomFileName = root.TryGetProperty("romFileName", out var romFileNameElement) ? romFileNameElement.GetString() : null,
+						Region = root.TryGetProperty("region", out var regionElement) ? regionElement.GetString() : null,
+						MetadataProvider = root.TryGetProperty("metadataProvider", out var providerElement) ? providerElement.GetString() ?? "Unknown" : "Unknown",
+						ProviderId = root.TryGetProperty("providerId", out var idElement) ? idElement.GetString() : null,
+						CoverUrl = root.TryGetProperty("coverUrl", out var coverElement) ? coverElement.GetString() : null,
+						Genres = ExtractStringArray(root, "genres"),
+						AlternateNames = ExtractStringArray(root, "alternateNames"),
+						MetadataFilePath = Path.GetRelativePath(metadataDirectory, jsonFile).Replace('\\', '/')
+					};
+
+					gamesList.Add(gameEntry);
+				}
+				catch (Exception)
+				{
+					// Continue processing other files if one fails to parse
+					continue;
+				}
+			}
+		}
+
+		// Sort games by name
+		var sortedGames = gamesList.OrderBy(g => ((dynamic)g).Name).ToList();
+
+		// Create the games list JSON
+		var gamesListData = new
+		{
+			Platform = Path.GetFileName(platformDirectory),
+			TotalGames = sortedGames.Count,
+			LastUpdated = DateTime.UtcNow,
+			Games = sortedGames
+		};
+
+		var options = new JsonSerializerOptions
+		{
+			WriteIndented = true,
+			PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+		};
+
+		var gamesListJson = JsonSerializer.Serialize(gamesListData, options);
+		await File.WriteAllTextAsync(gamesListPath, gamesListJson, Encoding.UTF8, cancellationToken);
+	}
+
+	private static List<string> ExtractStringArray(JsonElement root, string propertyName)
+	{
+		if (root.TryGetProperty(propertyName, out var arrayElement) && arrayElement.ValueKind == JsonValueKind.Array)
+		{
+			return arrayElement.EnumerateArray()
+				.Where(e => e.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(e.GetString()))
+				.Select(e => e.GetString()!)
+				.ToList();
+		}
+		return new List<string>();
+	}
+
 	private static GameInfo CreateFallbackGameInfo(string gameName, PlatformId platformId)
 	{
 		return new GameInfo
@@ -529,7 +907,8 @@ public class FileScanService : IScanService
 			CoverUrl = null, // No cover image
 			ArtworkUrls = new List<string?>(), // No artwork
 			ScreenShots = new List<string?>(), // No screenshots
-			Genres = new List<string>() // No genre information
+			Genres = new List<string>(), // No genre information
+			AlternateNames = new List<string>() // No alternate names
 		};
 	}
 }

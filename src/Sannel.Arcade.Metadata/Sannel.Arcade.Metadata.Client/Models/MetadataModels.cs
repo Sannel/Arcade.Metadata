@@ -20,9 +20,11 @@ public class GameMetadata
 	public List<string> ArtworkUrls { get; set; } = [];
 	public List<string> ScreenShots { get; set; } = [];
 	public List<string> Genres { get; set; } = [];
+	public List<string> AlternateNames { get; set; } = [];
 	public string? Region { get; set; }
 	public string RomFilePath { get; set; } = string.Empty;
 	public string RelativePath { get; set; } = string.Empty;
+	public string? RomFileName { get; set; }
 }
 
 public class GetPlatformsResponse

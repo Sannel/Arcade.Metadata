@@ -25,14 +25,16 @@ public class ScanController : ControllerBase
 	/// <summary>
 	/// Starts the background scanning process.
 	/// </summary>
+	/// <param name="forceRebuild">Whether to rebuild metadata even if it already exists.</param>
 	/// <returns>Success response.</returns>
 	[HttpPost("start")]
-	public IActionResult StartScan()
+	public IActionResult StartScan([FromQuery] bool forceRebuild = false)
 	{
 		try
 		{
+			_scanBackground.ForceRebuild = forceRebuild;
 			_scanBackground.ShouldScan = true;
-			return Ok(new { Success = true, Message = "Scan started successfully." });
+			return Ok(new { Success = true, Message = $"Scan started successfully{(forceRebuild ? " with force rebuild enabled" : "")}." });
 		}
 		catch (Exception ex)
 		{
@@ -50,6 +52,7 @@ public class ScanController : ControllerBase
 		try
 		{
 			_scanBackground.ShouldScan = false;
+			_scanBackground.ForceRebuild = false;
 			return Ok(new { Success = true, Message = "Scan stopped successfully." });
 		}
 		catch (Exception ex)
@@ -67,11 +70,16 @@ public class ScanController : ControllerBase
 	{
 		try
 		{
+			var message = _scanBackground.ShouldScan 
+				? $"Scanning is active{(_scanBackground.ForceRebuild ? " (force rebuild enabled)" : "")}" 
+				: "Scanning is inactive";
+			
 			return Ok(new 
 			{ 
 				Success = true, 
 				IsScanning = _scanBackground.ShouldScan,
-				Message = _scanBackground.ShouldScan ? "Scanning is active" : "Scanning is inactive"
+				ForceRebuild = _scanBackground.ForceRebuild,
+				Message = message
 			});
 		}
 		catch (Exception ex)

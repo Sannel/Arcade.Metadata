@@ -83,7 +83,7 @@ public class IgdbClient : IMetadataClient, IDisposable
 		var client = GetClient();
 
 		var games = await client.QueryAsync<Game>(IGDBClient.Endpoints.Games,
-			$"fields name,summary,cover.url,artworks.url,url,screenshots.url,genres.name; search \"{name}\"; where platforms = [{(int)platformId}];");
+			$"fields name,summary,cover.url,artworks.url,alternative_names.name,url,screenshots.url,genres.name; search \"{name}\"; where platforms = [{(int)platformId}];");
 
 		foreach (var game in games)
 		{
@@ -97,7 +97,8 @@ public class IgdbClient : IMetadataClient, IDisposable
 				CoverUrl = game.Cover?.Value?.Url,
 				ArtworkUrls = game.Artworks?.Values?.Select(a => a?.Url)?.ToList()?? [],
 				ScreenShots = game.Screenshots?.Values?.Select(s => s?.Url)?.ToList()?? [],
-				Genres = game.Genres?.Values?.Select(g => g?.Name)?.ToList() ?? []
+				Genres = game.Genres?.Values?.Select(g => g?.Name)?.ToList() ?? [],
+				AlternateNames = game.AlternativeNames?.Values?.Select(an => an?.Name)?.Where(n => !string.IsNullOrEmpty(n))?.ToList() ?? []
 			};
 
 			yield return info;

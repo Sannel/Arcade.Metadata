@@ -4,7 +4,7 @@ namespace Sannel.Arcade.Metadata.Client.Services;
 
 public interface IScanService
 {
-	Task<bool> StartScanAsync();
+	Task<bool> StartScanAsync(bool forceRebuild = false);
 	Task<bool> StopScanAsync();
 	Task<ScanStatusResponse> GetScanStatusAsync();
 }
@@ -18,11 +18,12 @@ public class ScanService : IScanService
 		_httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
 	}
 
-	public async Task<bool> StartScanAsync()
+	public async Task<bool> StartScanAsync(bool forceRebuild = false)
 	{
 		try
 		{
-			var response = await _httpClient.PostAsync("api/v1/scan/start", null);
+			var url = $"api/v1/scan/start?forceRebuild={forceRebuild}";
+			var response = await _httpClient.PostAsync(url, null);
 			if (response.IsSuccessStatusCode)
 			{
 				var result = await response.Content.ReadFromJsonAsync<ScanResponse>();
@@ -82,4 +83,5 @@ public class ScanResponse
 public class ScanStatusResponse : ScanResponse
 {
 	public bool IsScanning { get; set; }
+	public bool ForceRebuild { get; set; }
 }

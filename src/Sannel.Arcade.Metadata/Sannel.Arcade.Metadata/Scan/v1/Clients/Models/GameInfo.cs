@@ -1,5 +1,4 @@
-﻿
-namespace Sannel.Arcade.Metadata.Scan.v1.Clients.Models;
+﻿namespace Sannel.Arcade.Metadata.Scan.v1.Clients.Models;
 
 public class GameInfo
 {
@@ -13,4 +12,5 @@ public class GameInfo
 	public List<string?> ArtworkUrls { get; internal set; } = [];
 	public List<string?> ScreenShots { get; internal set; } = [];
 	public List<string?> Genres { get; internal set; } = [];
+	public List<string> AlternateNames { get; internal set; } = [];
 }

@@ -118,9 +118,17 @@
 								</MudCardContent>
 								<MudCardActions>
 									<div class="d-flex justify-space-between align-center w-100">
-										<MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Text">
-											@game.MetadataProvider
-										</MudChip>
+										<div class="d-flex flex-column">
+											<MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Text">
+												@game.MetadataProvider
+											</MudChip>
+											@if (!string.IsNullOrEmpty(GetRomFileNameWithoutExtension(game)))
+											{
+												<MudText Typo="Typo.caption" Class="mt-1" Style="font-size: 0.7rem; color: var(--mud-palette-text-secondary);">
+													@GetRomFileNameWithoutExtension(game)
+												</MudText>
+											}
+										</div>
 										@if (game.ArtworkUrls.Count > 0 || game.ScreenShots.Count > 0)
 										{
 											<MudTooltip Text="@($"{game.ArtworkUrls.Count} artwork(s), {game.ScreenShots.Count} screenshot(s)")">

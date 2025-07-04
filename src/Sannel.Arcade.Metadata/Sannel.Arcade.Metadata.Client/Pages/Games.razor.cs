@@ -105,4 +105,17 @@ public partial class Games : ComponentBase
 		game.CoverUrl = null;
 		StateHasChanged();
 	}
+
+	/// <summary>
+	/// Gets the ROM file name without extension for display purposes.
+	/// </summary>
+	/// <param name="game">The game metadata containing the ROM file name.</param>
+	/// <returns>The ROM file name without extension, or an empty string if not available.</returns>
+	private static string GetRomFileNameWithoutExtension(GameMetadata game)
+	{
+		if (string.IsNullOrEmpty(game.RomFileName))
+			return string.Empty;
+
+		return Path.GetFileNameWithoutExtension(game.RomFileName);
+	}
 }
