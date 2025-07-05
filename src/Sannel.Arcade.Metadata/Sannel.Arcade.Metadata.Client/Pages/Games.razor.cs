@@ -20,6 +20,7 @@ public partial class Games : ComponentBase
 	private bool _isLoading = false;
 	private List<GameMetadata> _filteredGames = [];
 	private string _searchText = string.Empty;
+	private HashSet<string> _failedImages = new();
 
 	protected override async Task OnInitializedAsync()
 	{
@@ -108,13 +109,16 @@ public partial class Games : ComponentBase
 	}
 
 	/// <summary>
-	/// Handles image loading errors by clearing the image URL to prevent broken image displays.
+	/// Handles image loading errors by adding the game ID to the failed images set.
 	/// </summary>
 	/// <param name="game">The game metadata to update.</param>
 	private void HandleCoverImageError(GameMetadata game)
 	{
-		// Clear the cover URL to prevent showing broken image
-		game.CoverUrl = null;
+		// Add game ID to failed images set to prevent retry and show icon instead
+		if (!string.IsNullOrEmpty(game.Id))
+		{
+			_failedImages.Add(game.Id);
+		}
 		StateHasChanged();
 	}
 

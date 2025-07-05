@@ -247,6 +247,95 @@ public class MetadataController : ControllerBase
 	}
 
 	/// <summary>
+	/// Downloads the platform image by platform name.
+	/// </summary>
+	/// <param name="platformName">The platform name.</param>
+	/// <returns>The platform image file.</returns>
+	[HttpGet("platforms/{platformName}/image")]
+	public async Task<IActionResult> GetPlatformImage(string platformName, CancellationToken cancellationToken = default)
+	{
+		if (string.IsNullOrWhiteSpace(platformName))
+		{
+			return BadRequest("Platform name is required");
+		}
+
+		try
+		{
+			var romsDirectory = await _mediator.Send(new GetSettingRequest()
+			{
+				Key = "roms.root"
+			}, cancellationToken);
+
+			if (string.IsNullOrEmpty(romsDirectory))
+			{
+				return BadRequest("ROMs directory is not configured");
+			}
+
+			var platformDirectory = Path.Combine(romsDirectory, platformName);
+			if (!Directory.Exists(platformDirectory))
+			{
+				return NotFound("Platform directory not found");
+			}
+
+			// Look for platform.jpg in the .metadata directory
+			var platformImagePath = Path.Combine(platformDirectory, ".metadata", "platform.jpg");
+			
+			// Security check: ensure the resolved path is within the expected directory structure
+			var expectedMetadataDirectory = Path.Combine(platformDirectory, ".metadata");
+			var resolvedPath = Path.GetFullPath(platformImagePath);
+			var resolvedExpectedDirectory = Path.GetFullPath(expectedMetadataDirectory);
+			
+			if (!resolvedPath.StartsWith(resolvedExpectedDirectory, StringComparison.OrdinalIgnoreCase))
+			{
+				return BadRequest("Invalid image path");
+			}
+
+			if (!System.IO.File.Exists(platformImagePath))
+			{
+				return NotFound("Platform image not found");
+			}
+
+			// Get file info for caching
+			var fileInfo = new FileInfo(platformImagePath);
+			var lastModified = fileInfo.LastWriteTimeUtc;
+			var fileSize = fileInfo.Length;
+			
+			// Generate ETag based on file path, size, and last modified time
+			var etag = GenerateETag(platformImagePath, fileSize, lastModified);
+			
+			// Check if client has cached version
+			if (IsClientCacheValid(etag, lastModified))
+			{
+				return new StatusCodeResult(304); // Not Modified
+			}
+
+			// Determine content type based on file extension
+			var extension = Path.GetExtension(platformImagePath).ToLowerInvariant();
+			var contentType = extension switch
+			{
+				".jpg" or ".jpeg" => "image/jpeg",
+				".png" => "image/png",
+				".gif" => "image/gif",
+				".webp" => "image/webp",
+				".bmp" => "image/bmp",
+				".tiff" => "image/tiff",
+				_ => "application/octet-stream"
+			};
+
+			// Set caching headers
+			SetImageCacheHeaders(etag, lastModified);
+
+			// Return the image file
+			var data = await System.IO.File.ReadAllBytesAsync(platformImagePath, cancellationToken);
+			return File(data, contentType);
+		}
+		catch (Exception ex)
+		{
+			return BadRequest($"Error serving platform image: {ex.Message}");
+		}
+	}
+
+	/// <summary>
 	/// Generates an ETag for the file based on its path, size, and last modified time.
 	/// </summary>
 	/// <param name="filePath">The file path.</param>

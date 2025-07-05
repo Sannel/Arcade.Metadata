@@ -72,78 +72,81 @@
 				<MudGrid>
 					@foreach (var game in _filteredGames)
 					{
-						<MudItem xs="12" sm="6" md="4" lg="3">
-							<MudCard Class="h-100 game-card">
-								<MudText>Platform: @Platform <br /> GameId: @game.Id <br />Cover Url: @game.CoverUrl</MudText>
-								@{
-									var coverImageUrl = !string.IsNullOrEmpty(game.CoverUrl) && !string.IsNullOrEmpty(game.Id) && !string.IsNullOrEmpty(Platform)
-										? $"/api/v1/metadata/platforms/{Uri.EscapeDataString(Platform)}/games/{Uri.EscapeDataString(game.Id)}/images/{Uri.EscapeDataString(game.CoverUrl)}"
-										: null;
-								}
-								@if (!string.IsNullOrEmpty(coverImageUrl))
-								{
-									<MudCardMedia Image="@coverImageUrl" 
-												  Height="200" 
-												  Class="game-cover-image"
-												  @onerror="@(() => HandleCoverImageError(game))" />
-								}
-								else
-								{
-									<div class="d-flex justify-center align-center game-cover-placeholder" style="height: 200px; background-color: var(--mud-palette-surface-variant);">
-										<MudIcon Icon="@Icons.Material.Filled.VideogameAsset" Size="Size.Large" Color="Color.Default" />
-									</div>
-								}
-								<MudCardContent>
-									<MudText Typo="Typo.h6" Class="mb-2">@game.Name</MudText>
-									
-									@if (!string.IsNullOrEmpty(game.Region))
-									{
-										<MudChip T="string" Size="Size.Small" Color="Color.Info" Class="mb-2">
-											@game.Region
-										</MudChip>
-									}
+						<MudItem xs="12" sm="6" md="4" lg="3" xl="2">
+							@{
+								var coverImageUrl = !string.IsNullOrEmpty(game.CoverUrl) && !string.IsNullOrEmpty(game.Id) && !string.IsNullOrEmpty(Platform)
+									? $"/api/v1/metadata/platforms/{Uri.EscapeDataString(Platform)}/games/{Uri.EscapeDataString(game.Id)}/images/{Uri.EscapeDataString(game.CoverUrl)}"
+									: null;
+								var hasImage = !string.IsNullOrEmpty(coverImageUrl) && !_failedImages.Contains(game.Id ?? "");
+								var backgroundStyle = hasImage ? $"background-image: url('{coverImageUrl}'); background-size: cover; background-position: center; background-repeat: no-repeat;" : "";
+							}
+							<div class="game-tile-container" @onclick="() => NavigateToGameDetails(game)">
+								<div class="game-tile" style="@backgroundStyle">
+									<div class="game-overlay">
+										@if (!hasImage)
+										{
+											<div class="game-icon-container">
+												<MudIcon Icon="@Icons.Material.Filled.VideogameAsset" Size="Size.Large" Color="Color.Primary" />
+											</div>
+										}
+										<div class="game-content">
+											<MudText Typo="Typo.subtitle1" Class="game-title">@game.Name</MudText>
+											
+											<div class="game-badges">
+												@if (!string.IsNullOrEmpty(game.Region))
+												{
+													<MudChip T="string" Size="Size.Small" Color="Color.Info" Class="game-region-chip">
+														@game.Region
+													</MudChip>
+												}
+												
+												@if (game.Genres.Count > 0)
+												{
+													<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="game-genre-chip">
+														@game.Genres.First()
+													</MudChip>
+												}
+											</div>
 
-									@if (game.Genres.Count > 0)
-									{
-										<div class="mb-2">
-											@foreach (var genre in game.Genres.Take(3))
+											@if (!string.IsNullOrEmpty(game.Description))
 											{
-												<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="mr-1 mb-1">
-													@genre
-												</MudChip>
-											}
-										</div>
-									}
-
-									@if (!string.IsNullOrEmpty(game.Description))
-									{
-										<MudText Typo="Typo.body2" Class="game-description">
-											@(game.Description.Length > 100 ? $"{game.Description[..100]}..." : game.Description)
-										</MudText>
-									}
-								</MudCardContent>
-								<MudCardActions>
-									<div class="d-flex justify-space-between align-center w-100">
-										<div class="d-flex flex-column">
-											<MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Text">
-												@game.MetadataProvider
-											</MudChip>
-											@if (!string.IsNullOrEmpty(GetRomFileNameWithoutExtension(game)))
-											{
-												<MudText Typo="Typo.caption" Class="mt-1" Style="font-size: 0.7rem; color: var(--mud-palette-text-secondary);">
-													@GetRomFileNameWithoutExtension(game)
+												<MudText Typo="Typo.caption" Class="game-description-overlay">
+													@(game.Description.Length > 80 ? $"{game.Description[..80]}..." : game.Description)
 												</MudText>
 											}
+
+											<div class="game-metadata">
+												<MudText Typo="Typo.caption" Class="game-provider">
+													@game.MetadataProvider
+												</MudText>
+												@if (!string.IsNullOrEmpty(GetRomFileNameWithoutExtension(game)))
+												{
+													<MudText Typo="Typo.caption" Class="game-filename">
+														@GetRomFileNameWithoutExtension(game)
+													</MudText>
+												}
+											</div>
+
+											@if (game.ArtworkUrls.Count > 0 || game.ScreenShots.Count > 0)
+											{
+												<div class="game-media-indicator">
+													<MudIcon Icon="@Icons.Material.Filled.Image" Size="Size.Small" />
+													<MudText Typo="Typo.caption" Class="ml-1">
+														@(game.ArtworkUrls.Count + game.ScreenShots.Count)
+													</MudText>
+												</div>
+											}
 										</div>
-										@if (game.ArtworkUrls.Count > 0 || game.ScreenShots.Count > 0)
-										{
-											<MudTooltip Text="@($"{game.ArtworkUrls.Count} artwork(s), {game.ScreenShots.Count} screenshot(s)")">
-												<MudIconButton Icon="@Icons.Material.Filled.Image" Size="Size.Small" />
-											</MudTooltip>
-										}
 									</div>
-								</MudCardActions>
-							</MudCard>
+									@if (hasImage)
+									{
+										<img src="@coverImageUrl" 
+											 alt="@game.Name cover" 
+											 style="display: none;"
+											 @onerror="@(() => HandleCoverImageError(game))" />
+									}
+								</div>
+							</div>
 						</MudItem>
 					}
 				</MudGrid>
@@ -153,29 +156,154 @@
 </MudContainer>
 
 <style>
-	.game-description {
+	.game-tile-container {
+		width: 100%;
+		aspect-ratio: 3 / 4;
+		cursor: pointer;
+		border-radius: 12px;
+		overflow: hidden;
+		box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+		transition: all 0.3s ease;
+		position: relative;
+	}
+
+	.game-tile-container:hover {
+		transform: translateY(-4px);
+		box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+	}
+
+	.game-tile {
+		width: 100%;
+		height: 100%;
+		position: relative;
+		display: flex;
+		align-items: flex-end;
+		background-color: #f5f5f5;
+		transition: all 0.3s ease;
+	}
+
+	.game-overlay {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		background: linear-gradient(transparent, rgba(0,0,0,0.8));
+		padding: 16px 12px 12px;
+		color: white;
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-end;
+		height: 100%;
+	}
+
+	.game-tile:not([style*="background-image"]) .game-overlay {
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		justify-content: center;
+		align-items: center;
+		text-align: center;
+	}
+
+	.game-icon-container {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		margin-bottom: 8px;
+	}
+
+	.game-content {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		align-items: flex-start;
+	}
+
+	.game-tile:not([style*="background-image"]) .game-content {
+		align-items: center;
+	}
+
+	.game-title {
+		font-weight: 600;
+		text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+		margin: 0;
+		line-height: 1.2;
 		display: -webkit-box;
-		-webkit-line-clamp: 3;
+		-webkit-line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 	}
 
-	.game-card:hover {
-		transform: translateY(-2px);
-		transition: transform 0.2s ease-in-out;
-		box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+	.game-badges {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+		margin: 4px 0;
 	}
 
-	.game-cover-image {
-		object-fit: cover;
-		transition: transform 0.2s ease-in-out;
+	.game-region-chip {
+		background-color: rgba(33, 150, 243, 0.9) !important;
+		color: white !important;
+		font-size: 0.7rem !important;
 	}
 
-	.game-cover-image:hover {
+	.game-genre-chip {
+		background-color: rgba(255, 255, 255, 0.2) !important;
+		color: white !important;
+		border-color: rgba(255, 255, 255, 0.5) !important;
+		font-size: 0.7rem !important;
+	}
+
+	.game-description-overlay {
+		color: rgba(255, 255, 255, 0.9);
+		font-size: 0.7rem;
+		line-height: 1.2;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+
+	.game-metadata {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		margin-top: 4px;
+	}
+
+	.game-provider {
+		color: rgba(255, 255, 255, 0.8);
+		font-size: 0.65rem;
+	}
+
+	.game-filename {
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 0.6rem;
+	}
+
+	.game-media-indicator {
+		display: flex;
+		align-items: center;
+		background-color: rgba(255, 255, 255, 0.2);
+		border-radius: 12px;
+		padding: 2px 6px;
+		margin-top: 4px;
+		align-self: flex-start;
+	}
+
+	.game-media-indicator .mud-typography {
+		color: white;
+		font-size: 0.65rem;
+	}
+
+	.game-tile:hover {
 		transform: scale(1.02);
 	}
 
-	.game-cover-placeholder {
-		border-radius: 4px;
+	.game-tile-container:hover .game-overlay {
+		background: linear-gradient(transparent, rgba(0,0,0,0.9));
+	}
+
+	.game-tile:not([style*="background-image"]):hover .game-overlay {
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 	}
 </style>

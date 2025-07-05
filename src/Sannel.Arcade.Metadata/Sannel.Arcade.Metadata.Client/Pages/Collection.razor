@@ -76,38 +76,38 @@
 					@foreach (var platform in _platformsResponse.Platforms)
 					{
 						<MudItem xs="12" sm="6" md="4" lg="3">
-							<MudCard Class="h-100 platform-card" Style="cursor: pointer;" @onclick="() => NavigateToGames(platform.Name)">
-								<MudCardContent Class="text-center pa-3">
-									@if (!string.IsNullOrEmpty(platform.CoverImageUrl))
-									{
-										<div class="d-flex justify-center mb-3 platform-image-container">
-											<img src="@platform.CoverImageUrl" 
-												 alt="@platform.Name cover" 
-												 class="platform-cover-image"
-												 @onerror="@(() => HandleImageError(platform))" />
+							@{
+								var platformImageUrl = GetPlatformImageUrl(platform.Name);
+								var hasImage = !string.IsNullOrEmpty(platformImageUrl) && !_failedImages.Contains(platform.Name);
+								var backgroundStyle = hasImage ? $"background-image: url('{platformImageUrl}'); background-size: cover; background-position: center; background-repeat: no-repeat;" : "";
+							}
+							<div class="platform-tile-container" @onclick="() => NavigateToGames(platform.Name)">
+								<div class="platform-tile" style="@backgroundStyle">
+									<div class="platform-overlay">
+										@if (!hasImage)
+										{
+											<div class="platform-icon-container">
+												<MudIcon Icon="@GetPlatformIcon(platform.Name)" Size="Size.Large" Color="Color.Primary" />
+											</div>
+										}
+										<div class="platform-content">
+											<MudText Typo="Typo.h6" Class="platform-name">
+												@platform.Name
+											</MudText>
+											<MudChip T="string" Color="Color.Success" Variant="Variant.Filled" Size="Size.Small" Class="game-count-chip">
+												@platform.GameCount games
+											</MudChip>
 										</div>
-									}
-									else
+									</div>
+									@if (hasImage)
 									{
-										<div class="d-flex justify-center mb-3">
-											<MudIcon Icon="@GetPlatformIcon(platform.Name)" Size="Size.Large" Color="Color.Primary" />
-										</div>
+										<img src="@platformImageUrl" 
+											 alt="@platform.Name cover" 
+											 style="display: none;"
+											 @onerror="@(() => HandleImageError(platform))" />
 									}
-									<MudText Typo="Typo.h6" Class="mb-2">
-										@platform.Name
-									</MudText>
-									<MudChip T="string" Color="Color.Success" Variant="Variant.Filled" Size="Size.Small">
-										@platform.GameCount games
-									</MudChip>
-								</MudCardContent>
-								<MudCardActions Class="justify-center">
-									<MudButton Variant="Variant.Text"
-											   Color="Color.Primary"
-											   StartIcon="@Icons.Material.Filled.VideogameAsset">
-										View Games
-									</MudButton>
-								</MudCardActions>
-							</MudCard>
+								</div>
+							</div>
 						</MudItem>
 					}
 				</MudGrid>
@@ -137,35 +137,106 @@
 </MudContainer>
 
 <style>
-	.platform-card:hover {
-		transform: translateY(-2px);
-		transition: transform 0.2s ease-in-out;
-		box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+	.platform-tile-container {
+		width: 100%;
+		aspect-ratio: 1 / 1;
+		cursor: pointer;
+		border-radius: 12px;
+		overflow: hidden;
+		box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+		transition: all 0.3s ease;
+		position: relative;
 	}
 
-	.platform-image-container {
-		height: 80px;
+	.platform-tile-container:hover {
+		transform: translateY(-4px);
+		box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+	}
+
+	.platform-tile {
+		width: 100%;
+		height: 100%;
+		position: relative;
+		display: flex;
+		align-items: flex-end;
+		background-color: #f5f5f5;
+		transition: all 0.3s ease;
+	}
+
+	.platform-overlay {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		background: linear-gradient(transparent, rgba(0,0,0,0.7));
+		padding: 20px 16px 16px;
+		color: white;
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-end;
+		height: 100%;
+	}
+
+	.platform-tile:not([style*="background-image"]) .platform-overlay {
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		justify-content: center;
+		align-items: center;
+		text-align: center;
+	}
+
+	.platform-icon-container {
+		flex: 1;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		overflow: hidden;
+		margin-bottom: 8px;
 	}
 
-	.platform-cover-image {
-		max-width: 100%;
-		max-height: 100%;
-		object-fit: contain;
-		border-radius: 4px;
-		box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+	.platform-content {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		align-items: flex-start;
 	}
 
-	.platform-cover-image:hover {
-		transform: scale(1.05);
-		transition: transform 0.2s ease-in-out;
+	.platform-tile:not([style*="background-image"]) .platform-content {
+		align-items: center;
+	}
+
+	.platform-name {
+		font-weight: 600;
+		text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+		margin: 0;
+	}
+
+	.game-count-chip {
+		background-color: rgba(76, 175, 80, 0.9) !important;
+		color: white !important;
+		font-weight: 500;
+	}
+
+	.platform-tile:hover {
+		transform: scale(1.02);
+	}
+
+	.platform-tile-container:hover .platform-overlay {
+		background: linear-gradient(transparent, rgba(0,0,0,0.8));
+	}
+
+	.platform-tile:not([style*="background-image"]):hover .platform-overlay {
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 	}
 </style>
 
 @code {
+	private HashSet<string> _failedImages = new();
+
+	private string? GetPlatformImageUrl(string platformName)
+	{
+		// Generate URL for the new platform image endpoint
+		return $"/api/v1/metadata/platforms/{Uri.EscapeDataString(platformName)}/image";
+	}
+
 	private string GetPlatformIcon(string platformName)
 	{
 		return platformName.ToLowerInvariant() switch
@@ -182,8 +253,8 @@
 
 	private void HandleImageError(PlatformInfo platform)
 	{
-		// If image fails to load, clear the CoverImageUrl so it falls back to icon
-		platform.CoverImageUrl = null;
+		// Add platform to failed images set to prevent retry and show icon instead
+		_failedImages.Add(platform.Name);
 		StateHasChanged();
 	}
 }
