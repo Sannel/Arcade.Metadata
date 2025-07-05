@@ -347,29 +347,19 @@ public class MetadataService : IMetadataService
 
 				var gameMetadata = new GameMetadata
 				{
+					Id = gameElement.TryGetProperty("id", out var idElement) ? idElement.GetString() ?? string.Empty : string.Empty,
 					Name = gameElement.TryGetProperty("name", out var nameElement) ? nameElement.GetString() ?? "Unknown" : "Unknown",
 					Description = gameElement.TryGetProperty("description", out var descElement) ? descElement.GetString() : null,
 					RomFileName = gameElement.TryGetProperty("romFileName", out var romFileNameElement) ? romFileNameElement.GetString() : null,
 					Region = gameElement.TryGetProperty("region", out var regionElement) ? regionElement.GetString() : null,
 					MetadataProvider = gameElement.TryGetProperty("metadataProvider", out var providerElement) ? providerElement.GetString() ?? "Unknown" : "Unknown",
-					ProviderId = gameElement.TryGetProperty("providerId", out var idElement) ? idElement.GetString() : null,
+					ProviderId = gameElement.TryGetProperty("providerId", out var pidElement) ? pidElement.GetString() : null,
 					Platform = platformName,
-					RelativePath = gameElement.TryGetProperty("metadataFilePath", out var pathElement) ? pathElement.GetString() ?? string.Empty : string.Empty
+					RelativePath = gameElement.TryGetProperty("metadataFilePath", out var pathElement) ? pathElement.GetString() ?? string.Empty : string.Empty,
+					CoverUrl = gameElement.TryGetProperty("coverUrl", out var coverElement) && coverElement.ValueKind == JsonValueKind.String
+						? coverElement.GetString() ?? string.Empty
+						: null,
 				};
-
-				// Handle cover URL - convert relative path to full API URL
-				if (gameElement.TryGetProperty("coverUrl", out var coverElement) && !string.IsNullOrEmpty(coverElement.GetString()))
-				{
-					var coverPath = coverElement.GetString();
-					if (!string.IsNullOrEmpty(coverPath) && platformId != PlatformId.None)
-					{
-						gameMetadata.CoverUrl = $"/api/v1/metadata/game-images/{platformId}/{coverPath}";
-					}
-					else
-					{
-						gameMetadata.CoverUrl = coverPath;
-					}
-				}
 
 				// Handle genres array
 				if (gameElement.TryGetProperty("genres", out var genresElement) && genresElement.ValueKind == JsonValueKind.Array)

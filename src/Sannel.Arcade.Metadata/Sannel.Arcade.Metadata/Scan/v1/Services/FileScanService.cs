@@ -20,6 +20,9 @@ public class FileScanService : IScanService
 	// Regex pattern for IGDB image URLs
 	private static readonly Regex IgdbImagePattern = new(@"https://images\.igdb\.com/igdb/image/upload/t_([^/]+)/([^/.]+)\.jpg", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+	// Regex pattern for replacing non-alphanumeric characters
+	private static readonly Regex NonAlphanumericPattern = new(@"[^a-zA-Z0-9]", RegexOptions.Compiled);
+
 	public FileScanService(IMetadataClient metadataClient, IMediator mediator, HttpClient httpClient)
 	{
 		_metadataClient = metadataClient ?? throw new ArgumentNullException(nameof(metadataClient));
@@ -258,43 +261,142 @@ public class FileScanService : IScanService
 		if (candidates.Count == 0)
 			return null;
 
-		 // Calculate similarity for all candidates
+		// Step 1: Try exact matches first (case-insensitive)
+		var exactMatch = TryFindExactMatch(gameName, candidates);
+		if (exactMatch != null)
+			return exactMatch;
+
+		// Step 2: Try exact matches against alternate names
+		var alternateNameMatch = TryFindAlternateNameMatch(gameName, candidates);
+		if (alternateNameMatch != null)
+			return alternateNameMatch;
+
+		// Step 3: If no exact matches found and name contains trailing "1" or "I", 
+		// try removing them and attempt exact matching again
+		var strippedName = StripTrailingSequenceCharacters(gameName);
+		if (!string.Equals(strippedName, gameName, StringComparison.OrdinalIgnoreCase))
+		{
+			// Try exact match with stripped name
+			var strippedExactMatch = TryFindExactMatch(strippedName, candidates);
+			if (strippedExactMatch != null)
+				return strippedExactMatch;
+
+			// Try alternate name match with stripped name
+			var strippedAlternateMatch = TryFindAlternateNameMatch(strippedName, candidates);
+			if (strippedAlternateMatch != null)
+				return strippedAlternateMatch;
+		}
+
+		// Step 4: If no exact matches found, fall back to fuzzy matching
+		return FindBestFuzzyMatch(gameName, candidates);
+	}
+
+	/// <summary>
+	/// Strips trailing "1" or "I" characters that might be extraneous from file names.
+	/// This is more aggressive than RemoveTrailingSequenceCharacters and is used specifically
+	/// for additional exact matching attempts.
+	/// </summary>
+	private static string StripTrailingSequenceCharacters(string name)
+	{
+		if (string.IsNullOrEmpty(name))
+			return name;
+
+		var result = name;
+		
+		// Remove trailing "1" or "I" characters (case-insensitive)
+		// But only if they appear to be extraneous (not part of legitimate sequel names)
+		while (result.Length > 3 && // Keep substantial names
+			   (result[^1] == '1' || result[^1] == 'I' || result[^1] == 'i'))
+		{
+			var withoutLastChar = result[..^1].Trim();
+			
+			// Only remove if:
+			// 1. The remaining name is substantial (more than 3 characters)
+			// 2. The character is not preceded by a space (indicating it might be part of the base name)
+			// 3. It doesn't look like a legitimate sequel indicator
+			if (withoutLastChar.Length > 3 && 
+				result.Length > 1 &&
+				!char.IsWhiteSpace(result[^2]) &&
+				!IsLikelySequelIndicator(result, result.Length - 1))
+			{
+				result = withoutLastChar;
+			}
+			else
+			{
+				break; // Stop if it looks like a legitimate sequel indicator
+			}
+		}
+
+		return result;
+	}
+
+	/// <summary>
+	/// Attempts to find an exact match by comparing the search name to each game's primary name.
+	/// </summary>
+	/// <param name="searchName">The name to search for.</param>
+	/// <param name="candidates">The list of candidate games.</param>
+	/// <returns>The exact match if found, otherwise null.</returns>
+	private static GameInfo? TryFindExactMatch(string searchName, List<GameInfo> candidates)
+	{
+		return candidates.FirstOrDefault(game => 
+			string.Equals(searchName, game.Name, StringComparison.OrdinalIgnoreCase));
+	}
+
+	/// <summary>
+	/// Attempts to find an exact match by comparing the search name to each game's alternate names.
+	/// </summary>
+	/// <param name="searchName">The name to search for.</param>
+	/// <param name="candidates">The list of candidate games.</param>
+	/// <returns>The exact match if found, otherwise null.</returns>
+	private static GameInfo? TryFindAlternateNameMatch(string searchName, List<GameInfo> candidates)
+	{
+		return candidates.FirstOrDefault(game =>
+			game.AlternateNames.Any(altName => 
+				string.Equals(searchName, altName, StringComparison.OrdinalIgnoreCase)));
+	}
+
+	/// <summary>
+	/// Performs fuzzy matching using similarity algorithms and various heuristics.
+	/// </summary>
+	/// <param name="searchName">The name to search for.</param>
+	/// <param name="candidates">The list of candidate games.</param>
+	/// <returns>The best fuzzy match if similarity is above threshold, otherwise null.</returns>
+	private static GameInfo? FindBestFuzzyMatch(string searchName, List<GameInfo> candidates)
+	{
+		// Calculate similarity for all candidates
 		var scoredCandidates = candidates
 			.Select(game => new
 			{
 				Game = game,
-				Similarity = CalculateBestSimilarity(gameName, game),
-				IsExactMatch = IsExactMatch(gameName, game),
-				IsBaseVersion = IsBaseVersionOfGame(gameName, game.Name) || game.AlternateNames.Any(altName => IsBaseVersionOfGame(gameName, altName)),
-				IsSequelMatch = IsSequelMatch(gameName, game),
-				HasSequelIndicator = ContainsSequelIndicator(gameName)
+				Similarity = CalculateBestSimilarity(searchName, game),
+				IsBaseVersion = IsBaseVersionOfGame(searchName, game.Name) || game.AlternateNames.Any(altName => IsBaseVersionOfGame(searchName, altName)),
+				IsSequelMatch = IsSequelMatch(searchName, game),
+				HasSequelIndicator = ContainsSequelIndicator(searchName)
 			})
+			.Where(x => x.Similarity >= 0.6) // Filter out very poor matches early
+			.OrderByDescending(x => x.Similarity)
 			.ToList();
 
-		// First, try to find an exact match
-		var exactMatch = scoredCandidates.FirstOrDefault(x => x.IsExactMatch);
-		if (exactMatch != null)
-			return exactMatch.Game;
+		if (scoredCandidates.Count == 0)
+			return null;
 
 		// If the search name has sequel indicators, prioritize sequel matches
 		if (scoredCandidates.Any(x => x.HasSequelIndicator))
 		{
 			var sequelMatches = scoredCandidates
 				.Where(x => x.IsSequelMatch && x.Similarity >= 0.7)
-				.OrderByDescending(x => x.Similarity)
 				.ToList();
 
 			if (sequelMatches.Count > 0)
 				return sequelMatches.First().Game;
 		}
 
-		// If no exact match, look for base version matches (e.g., "Adventure Island" when searching for stripped "Adventure Island")
-		// But only if the search name doesn't have sequel indicators
+		// If no sequel match and search name doesn't have sequel indicators,
+		// look for base version matches
 		if (!scoredCandidates.Any(x => x.HasSequelIndicator))
 		{
 			var baseVersionMatches = scoredCandidates
 				.Where(x => x.IsBaseVersion && x.Similarity >= 0.8)
-				.OrderByDescending(x => x.Similarity)
 				.ToList();
 
 			if (baseVersionMatches.Count > 0)
@@ -311,12 +413,77 @@ public class FileScanService : IScanService
 			}
 		}
 
-		// Fall back to highest similarity match if above 70%
-		var bestMatch = scoredCandidates
-			.OrderByDescending(x => x.Similarity)
-			.First();
-
+		// Fall back to highest similarity match if above 70% threshold
+		var bestMatch = scoredCandidates.First();
 		return bestMatch.Similarity >= 0.7 ? bestMatch.Game : null;
+	}
+
+	private static double CalculateBestSimilarity(string searchName, GameInfo game)
+	{
+		// Calculate similarity against main name
+		var mainSimilarity = CalculateSimilarity(searchName, game.Name);
+		
+		// Calculate similarity against all alternate names
+		var alternateSimilarities = game.AlternateNames
+			.Select(altName => CalculateSimilarity(searchName, altName))
+			.DefaultIfEmpty(0.0);
+
+		// Return the highest similarity score
+		return Math.Max(mainSimilarity, alternateSimilarities.Max());
+	}
+
+	private static bool IsBaseVersionOfGame(string searchName, string gameName)
+	{
+		// Check if the game name starts with the search name and might be a base version
+		var searchLower = searchName.ToLowerInvariant().Trim();
+		var gameLower = gameName.ToLowerInvariant().Trim();
+
+		// Exact match (case insensitive)
+		if (searchLower == gameLower)
+			return true;
+
+		// Check if game name starts with search name followed by common version patterns
+		if (gameLower.StartsWith(searchLower, StringComparison.Ordinal))
+		{
+			var remainder = gameLower[searchLower.Length..].Trim();
+			
+			// If remainder is empty or just whitespace, it's the base version
+			if (string.IsNullOrWhiteSpace(remainder))
+				return true;
+
+			// Check for common version separators and patterns
+			if (remainder.StartsWith(":", StringComparison.Ordinal) ||
+				remainder.StartsWith("-", StringComparison.Ordinal) ||
+				remainder.StartsWith(".", StringComparison.Ordinal))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static bool ContainsVersionIndicators(string gameName)
+	{
+		var nameLower = gameName.ToLowerInvariant();
+		
+		// Check for common version indicators
+		var versionPatterns = new[]
+		{
+			@"\b(ii|iii|iv|v|vi|vii|viii|ix|x)\b", // Roman numerals
+			@"\b[2-9]\b", // Numbers 2-9
+			@"\b(two|three|four|five|six|seven|eight|nine|ten)\b", // Written numbers
+			@"\b(sequel|part)\s+[2-9]\b", // "Sequel 2", "Part 3", etc.
+			@":\s*(ii|iii|iv|v|vi|vii|viii|ix|x|[2-9])\b" // Colon followed by version
+		};
+
+		foreach (var pattern in versionPatterns)
+		{
+			if (Regex.IsMatch(nameLower, pattern, RegexOptions.IgnoreCase))
+				return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>
@@ -465,113 +632,22 @@ public class FileScanService : IScanService
 		};
 	}
 
-	private static double CalculateBestSimilarity(string searchName, GameInfo game)
+	private string GetMetadataFilePath(string romFilePath, string platformDirectory, string gameId)
 	{
-		// Calculate similarity against main name
-		var mainSimilarity = CalculateSimilarity(searchName, game.Name);
-		
-		// Calculate similarity against all alternate names
-		var alternateSimilarities = game.AlternateNames
-			.Select(altName => CalculateSimilarity(searchName, altName))
-			.DefaultIfEmpty(0.0);
-
-		// Return the highest similarity score
-		return Math.Max(mainSimilarity, alternateSimilarities.Max());
-	}
-
-	private static bool IsExactMatch(string searchName, GameInfo game)
-	{
-		// Check main name
-		if (string.Equals(searchName, game.Name, StringComparison.OrdinalIgnoreCase))
-			return true;
-
-		// Check alternate names
-		return game.AlternateNames.Any(altName => string.Equals(searchName, altName, StringComparison.OrdinalIgnoreCase));
-	}
-
-	private static bool IsBaseVersionOfGame(string searchName, string gameName)
-	{
-		// Check if the game name starts with the search name and might be a base version
-		var searchLower = searchName.ToLowerInvariant().Trim();
-		var gameLower = gameName.ToLowerInvariant().Trim();
-
-		// Exact match (case insensitive)
-		if (searchLower == gameLower)
-			return true;
-
-		// Check if game name starts with search name followed by common version patterns
-		if (gameLower.StartsWith(searchLower, StringComparison.Ordinal))
-		{
-			var remainder = gameLower[searchLower.Length..].Trim();
-			
-			// If remainder is empty or just whitespace, it's the base version
-			if (string.IsNullOrWhiteSpace(remainder))
-				return true;
-
-			// Check for common version separators and patterns
-			if (remainder.StartsWith(":", StringComparison.Ordinal) ||
-				remainder.StartsWith("-", StringComparison.Ordinal) ||
-				remainder.StartsWith(".", StringComparison.Ordinal))
-			{
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	private static bool ContainsVersionIndicators(string gameName)
-	{
-		var nameLower = gameName.ToLowerInvariant();
-		
-		// Check for common version indicators
-		var versionPatterns = new[]
-		{
-			@"\b(ii|iii|iv|v|vi|vii|viii|ix|x)\b", // Roman numerals
-			@"\b[2-9]\b", // Numbers 2-9
-			@"\b(two|three|four|five|six|seven|eight|nine|ten)\b", // Written numbers
-			@"\b(sequel|part)\s+[2-9]\b", // "Sequel 2", "Part 3", etc.
-			@":\s*(ii|iii|iv|v|vi|vii|viii|ix|x|[2-9])\b" // Colon followed by version
-		};
-
-		foreach (var pattern in versionPatterns)
-		{
-			if (Regex.IsMatch(nameLower, pattern, RegexOptions.IgnoreCase))
-				return true;
-		}
-
-		return false;
-	}
-
-	private string GetMetadataFilePath(string romFilePath, string platformDirectory)
-	{
-		var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(romFilePath);
 		var metadataDirectory = Path.Combine(platformDirectory, ".metadata");
 		
 		// Create the .metadata directory if it doesn't exist
 		Directory.CreateDirectory(metadataDirectory);
 		
-		// Get the relative path from platform directory to ROM file
-		var relativePath = Path.GetRelativePath(platformDirectory, romFilePath);
-		var relativeDirectory = Path.GetDirectoryName(relativePath) ?? string.Empty;
-		
-		// Create the corresponding subdirectory structure in .metadata
-		var metadataSubDirectory = Path.Combine(metadataDirectory, relativeDirectory);
-		Directory.CreateDirectory(metadataSubDirectory);
-		
-		return Path.Combine(metadataSubDirectory, $"{fileNameWithoutExtension}.json");
+		return Path.Combine(metadataDirectory, $"{gameId}.json");
 	}
 
-	private string GetImagesDirectory(string romFilePath, string platformDirectory)
+	private string GetImagesDirectory(string platformDirectory, string gameId)
 	{
 		var metadataDirectory = Path.Combine(platformDirectory, ".metadata");
 		
-		// Get the relative path from platform directory to ROM file
-		var relativePath = Path.GetRelativePath(platformDirectory, romFilePath);
-		var relativeDirectory = Path.GetDirectoryName(relativePath) ?? string.Empty;
-		
-		// Create images directory structure
-		var imagesDirectory = Path.Combine(metadataDirectory, relativeDirectory, "images");
+		// Create images directory structure using game ID
+		var imagesDirectory = Path.Combine(metadataDirectory, "images", gameId);
 		Directory.CreateDirectory(imagesDirectory);
 		
 		return imagesDirectory;
@@ -673,7 +749,7 @@ public class FileScanService : IScanService
 
 			// Skip if file already exists
 			if (File.Exists(filePath))
-				return $"images/{fileName}";
+				return fileName; // Return just the filename since it's in the game's image directory
 
 			// Download the image
 			using var response = await _httpClient.GetAsync(fixedUrl, cancellationToken);
@@ -698,8 +774,8 @@ public class FileScanService : IScanService
 				using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write);
 				await response.Content.CopyToAsync(fileStream, cancellationToken);
 
-				// Return relative path from JSON file location
-				return $"images/{fileName}";
+				// Return just the filename since it's in the game's image directory
+				return fileName;
 			}
 		}
 		catch (Exception)
@@ -712,39 +788,72 @@ public class FileScanService : IScanService
 
 	private async Task<List<string>> DownloadImagesWithFallbackAsync(List<string?> imageUrls, string imagesDirectory, string filePrefix, string imageType, CancellationToken cancellationToken)
 	{
-		var relativePaths = new List<string>();
+		var fileNames = new List<string>();
 		
 		for (int i = 0; i < imageUrls.Count; i++)
 		{
 			var imageUrl = imageUrls[i];
 			if (!string.IsNullOrEmpty(imageUrl))
 			{
-				var relativePath = await DownloadImageWithFallbackAsync(imageUrl, imagesDirectory, $"{filePrefix}_{i + 1}", imageType, cancellationToken);
-				if (relativePath != null)
+				var fileName = await DownloadImageWithFallbackAsync(imageUrl, imagesDirectory, $"{filePrefix}_{i + 1}", imageType, cancellationToken);
+				if (fileName != null)
 				{
-					relativePaths.Add(relativePath);
+					fileNames.Add(fileName);
 				}
 			}
 		}
 
-		return relativePaths;
+		return fileNames;
+	}
+
+	/// <summary>
+	/// Generates a unique ID from a filename by removing spaces and replacing non-alphanumeric characters with underscores.
+	/// </summary>
+	/// <param name="fileName">The filename to convert to an ID.</param>
+	/// <returns>A sanitized ID string.</returns>
+	private static string GenerateIdFromFileName(string fileName)
+	{
+		if (string.IsNullOrWhiteSpace(fileName))
+			return "unknown";
+
+		var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
+		
+		// Remove spaces and replace non-alphanumeric characters with underscores
+		var id = fileNameWithoutExtension.Replace(" ", "");
+		id = NonAlphanumericPattern.Replace(id, "_");
+		
+		// Remove consecutive underscores and trim leading/trailing underscores
+		id = Regex.Replace(id, @"_+", "_").Trim('_');
+		
+		// Ensure the ID is not empty and doesn't start with a number
+		if (string.IsNullOrEmpty(id))
+			id = "unknown";
+		else if (char.IsDigit(id[0]))
+			id = $"game_{id}";
+
+		return id.ToLowerInvariant();
 	}
 
 	private async Task SaveGameInfoAsync(string romFilePath, string platformDirectory, GameInfo gameInfo, string? region, CancellationToken cancellationToken)
 	{
-		var jsonFilePath = GetMetadataFilePath(romFilePath, platformDirectory);
-		var imagesDirectory = GetImagesDirectory(romFilePath, platformDirectory);
-		var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(romFilePath);
 		var romFileName = Path.GetFileName(romFilePath);
 
-		// Download images with fallback to original size if largest size fails
-		var coverImagePath = await DownloadImageWithFallbackAsync(gameInfo.CoverUrl, imagesDirectory, $"{fileNameWithoutExtension}_cover", "cover", cancellationToken);
-		var artworkPaths = await DownloadImagesWithFallbackAsync(gameInfo.ArtworkUrls, imagesDirectory, $"{fileNameWithoutExtension}_artwork", "artwork", cancellationToken);
-		var screenshotPaths = await DownloadImagesWithFallbackAsync(gameInfo.ScreenShots, imagesDirectory, $"{fileNameWithoutExtension}_screenshot", "screenshot", cancellationToken);
+		// Generate ID from filename
+		var gameId = GenerateIdFromFileName(romFileName);
 
-		// Create an anonymous object that includes the original GameInfo plus the region, local image paths, and ROM file name
+		var jsonFilePath = GetMetadataFilePath(romFilePath, platformDirectory, gameId);
+		var imagesDirectory = GetImagesDirectory(platformDirectory, gameId);
+
+		// Download images with fallback to original size if largest size fails
+		// Use simpler file names since they're in a dedicated directory for this game
+		var coverImagePath = await DownloadImageWithFallbackAsync(gameInfo.CoverUrl, imagesDirectory, "cover", "cover", cancellationToken);
+		var artworkPaths = await DownloadImagesWithFallbackAsync(gameInfo.ArtworkUrls, imagesDirectory, "artwork", "artwork", cancellationToken);
+		var screenshotPaths = await DownloadImagesWithFallbackAsync(gameInfo.ScreenShots, imagesDirectory, "screenshot", "screenshot", cancellationToken);
+
+		// Create an anonymous object that includes the original GameInfo plus the region, local image paths, ROM file name, and generated ID
 		var gameMetadata = new
 		{
+			Id = gameId, // Add the generated ID
 			gameInfo.Name,
 			gameInfo.Description,
 			gameInfo.Platform,
@@ -786,8 +895,11 @@ public class FileScanService : IScanService
 			var ext = Path.GetExtension(fileName);
 			if(IsSupportedFileExtension(ext, platformId))
 			{
+				 // Generate ID for this ROM file
+				var gameId = GenerateIdFromFileName(fileName);
+				
 				// Check if metadata JSON already exists in .metadata folder
-				var jsonFilePath = GetMetadataFilePath(file, directory);
+				var jsonFilePath = GetMetadataFilePath(file, directory, gameId);
 				if (!forceRebuild && File.Exists(jsonFilePath))
 					continue; // Skip if metadata already exists and we're not forcing rebuild
 
@@ -821,7 +933,8 @@ public class FileScanService : IScanService
 
 		if (Directory.Exists(metadataDirectory))
 		{
-			foreach (var jsonFile in Directory.EnumerateFiles(metadataDirectory, "*.json", SearchOption.AllDirectories))
+			// Look for JSON files directly in the .metadata directory (not subdirectories since we're using ID-based naming now)
+			foreach (var jsonFile in Directory.EnumerateFiles(metadataDirectory, "*.json"))
 			{
 				if (cancellationToken.IsCancellationRequested)
 					break;
@@ -839,16 +952,17 @@ public class FileScanService : IScanService
 					// Extract basic game information
 					var gameEntry = new
 					{
+						Id = root.TryGetProperty("id", out var idElement) ? idElement.GetString() ?? "unknown" : "unknown", // Include the ID
 						Name = root.TryGetProperty("name", out var nameElement) ? nameElement.GetString() ?? "Unknown" : "Unknown",
 						Description = root.TryGetProperty("description", out var descElement) ? descElement.GetString() : null,
 						RomFileName = root.TryGetProperty("romFileName", out var romFileNameElement) ? romFileNameElement.GetString() : null,
 						Region = root.TryGetProperty("region", out var regionElement) ? regionElement.GetString() : null,
 						MetadataProvider = root.TryGetProperty("metadataProvider", out var providerElement) ? providerElement.GetString() ?? "Unknown" : "Unknown",
-						ProviderId = root.TryGetProperty("providerId", out var idElement) ? idElement.GetString() : null,
+						ProviderId = root.TryGetProperty("providerId", out var providerIdElement) ? providerIdElement.GetString() : null,
 						CoverUrl = root.TryGetProperty("coverUrl", out var coverElement) ? coverElement.GetString() : null,
 						Genres = ExtractStringArray(root, "genres"),
 						AlternateNames = ExtractStringArray(root, "alternateNames"),
-						MetadataFilePath = Path.GetRelativePath(metadataDirectory, jsonFile).Replace('\\', '/')
+						MetadataFilePath = Path.GetFileName(jsonFile) // Just the filename since it's directly in .metadata now
 					};
 
 					gamesList.Add(gameEntry);

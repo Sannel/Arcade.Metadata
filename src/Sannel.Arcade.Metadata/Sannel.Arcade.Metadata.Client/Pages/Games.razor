@@ -74,9 +74,15 @@
 					{
 						<MudItem xs="12" sm="6" md="4" lg="3">
 							<MudCard Class="h-100 game-card">
-								@if (!string.IsNullOrEmpty(game.CoverUrl))
+								<MudText>Platform: @Platform <br /> GameId: @game.Id <br />Cover Url: @game.CoverUrl</MudText>
+								@{
+									var coverImageUrl = !string.IsNullOrEmpty(game.CoverUrl) && !string.IsNullOrEmpty(game.Id) && !string.IsNullOrEmpty(Platform)
+										? $"/api/v1/metadata/platforms/{Uri.EscapeDataString(Platform)}/games/{Uri.EscapeDataString(game.Id)}/images/{Uri.EscapeDataString(game.CoverUrl)}"
+										: null;
+								}
+								@if (!string.IsNullOrEmpty(coverImageUrl))
 								{
-									<MudCardMedia Image="@game.CoverUrl" 
+									<MudCardMedia Image="@coverImageUrl" 
 												  Height="200" 
 												  Class="game-cover-image"
 												  @onerror="@(() => HandleCoverImageError(game))" />

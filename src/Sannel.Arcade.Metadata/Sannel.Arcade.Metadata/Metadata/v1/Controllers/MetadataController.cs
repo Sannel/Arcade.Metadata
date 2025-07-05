@@ -7,6 +7,7 @@ using Sannel.Arcade.Metadata.Common.Settings;
 using Sannel.Arcade.Metadata.Scan.v1.Clients.Models;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 
 namespace Sannel.Arcade.Metadata.Metadata.v1.Controllers;
 
@@ -77,17 +78,17 @@ public class MetadataController : ControllerBase
 	}
 
 	/// <summary>
-	/// Serves an image file from the metadata directory.
+	/// Gets a specific game's metadata by ID.
 	/// </summary>
-	/// <param name="platformName">The platform name.</param>
-	/// <param name="imagePath">The relative path to the image.</param>
-	/// <returns>The image file.</returns>
-	[HttpGet("platforms/{platformName}/images/{**imagePath}")]
-	public async Task<IActionResult> GetImage(string platformName, string imagePath, CancellationToken cancellationToken = default)
+	/// <param name="platformName">The name of the platform.</param>
+	/// <param name="gameId">The ID of the game.</param>
+	/// <returns>The game metadata.</returns>
+	[HttpGet("platforms/{platformName}/games/{gameId}")]
+	public async Task<ActionResult<GameMetadata>> GetGame(string platformName, string gameId, CancellationToken cancellationToken = default)
 	{
-		if (string.IsNullOrWhiteSpace(platformName) || string.IsNullOrWhiteSpace(imagePath))
+		if (string.IsNullOrWhiteSpace(platformName) || string.IsNullOrWhiteSpace(gameId))
 		{
-			return BadRequest("Platform name and image path are required");
+			return BadRequest("Platform name and game ID are required");
 		}
 
 		try
@@ -108,74 +109,41 @@ public class MetadataController : ControllerBase
 				return NotFound("Platform directory not found");
 			}
 
-			// Construct the full image path
-			var fullImagePath = Path.Combine(platformDirectory, ".metadata", imagePath);
-			
-			// Security check: ensure the resolved path is within the metadata directory
 			var metadataDirectory = Path.Combine(platformDirectory, ".metadata");
-			var resolvedPath = Path.GetFullPath(fullImagePath);
-			var resolvedMetadataDirectory = Path.GetFullPath(metadataDirectory);
-			
-			if (!resolvedPath.StartsWith(resolvedMetadataDirectory, StringComparison.OrdinalIgnoreCase))
+			var gameMetadataPath = Path.Combine(metadataDirectory, $"{gameId}.json");
+
+			if (!System.IO.File.Exists(gameMetadataPath))
 			{
-				return BadRequest("Invalid image path");
+				return NotFound("Game metadata not found");
 			}
 
-			if (!System.IO.File.Exists(fullImagePath))
+			var jsonContent = await System.IO.File.ReadAllTextAsync(gameMetadataPath, cancellationToken);
+			var gameMetadata = JsonSerializer.Deserialize<GameMetadata>(jsonContent, new JsonSerializerOptions
 			{
-				return NotFound("Image not found");
-			}
+				PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+			});
 
-			 // Get file info for caching
-			var fileInfo = new FileInfo(fullImagePath);
-			var lastModified = fileInfo.LastWriteTimeUtc;
-			var fileSize = fileInfo.Length;
-			
-			// Generate ETag based on file path, size, and last modified time
-			var etag = GenerateETag(fullImagePath, fileSize, lastModified);
-			
-			// Check if client has cached version
-			if (IsClientCacheValid(etag, lastModified))
-			{
-				return new StatusCodeResult(304); // Not Modified
-			}
-
-			// Determine content type based on file extension
-			var extension = Path.GetExtension(fullImagePath).ToLowerInvariant();
-			var contentType = extension switch
-			{
-				".jpg" or ".jpeg" => "image/jpeg",
-				".png" => "image/png",
-				".gif" => "image/gif",
-				".webp" => "image/webp",
-				_ => "application/octet-stream"
-			};
-
-			// Set caching headers
-			SetImageCacheHeaders(etag, lastModified);
-
-			// Return the image file
-			var fileStream = new FileStream(fullImagePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-			return File(fileStream, contentType);
+			return Ok(gameMetadata);
 		}
 		catch (Exception ex)
 		{
-			return BadRequest($"Error serving image: {ex.Message}");
+			return BadRequest($"Error retrieving game metadata: {ex.Message}");
 		}
 	}
 
 	/// <summary>
-	/// Downloads a game image by PlatformId and image path.
+	/// Downloads a game image by game ID and image filename.
 	/// </summary>
-	/// <param name="platformId">The platform ID enum value.</param>
-	/// <param name="imagePath">The relative path to the image.</param>
+	/// <param name="platformName">The platform name.</param>
+	/// <param name="gameId">The game ID.</param>
+	/// <param name="imageFileName">The image filename.</param>
 	/// <returns>The image file.</returns>
-	[HttpGet("game-images/{platformId}/{**imagePath}")]
-	public async Task<IActionResult> GetGameImage(PlatformId platformId, string imagePath, CancellationToken cancellationToken = default)
+	[HttpGet("platforms/{platformName}/games/{gameId}/images/{imageFileName}")]
+	public async Task<IActionResult> GetGameImage(string platformName, string gameId, string imageFileName, CancellationToken cancellationToken = default)
 	{
-		if (platformId == PlatformId.None || string.IsNullOrWhiteSpace(imagePath))
+		if (string.IsNullOrWhiteSpace(platformName) || string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(imageFileName))
 		{
-			return BadRequest("Valid platform ID and image path are required");
+			return BadRequest("Platform name, game ID, and image filename are required");
 		}
 
 		try
@@ -190,24 +158,21 @@ public class MetadataController : ControllerBase
 				return BadRequest("ROMs directory is not configured");
 			}
 
-			// Convert PlatformId enum to directory name (assumes directory names match enum values)
-			var platformName = platformId.ToString();
 			var platformDirectory = Path.Combine(romsDirectory, platformName);
-			
 			if (!Directory.Exists(platformDirectory))
 			{
-				return NotFound($"Platform directory not found for {platformName}");
+				return NotFound("Platform directory not found");
 			}
 
-			// Construct the full image path
-			var fullImagePath = Path.Combine(platformDirectory, ".metadata", imagePath);
+			// Construct the full image path using new ID-based structure
+			var fullImagePath = Path.Combine(platformDirectory, ".metadata", "images", gameId, imageFileName);
 			
-			// Security check: ensure the resolved path is within the metadata directory
-			var metadataDirectory = Path.Combine(platformDirectory, ".metadata");
+			// Security check: ensure the resolved path is within the expected directory structure
+			var expectedImageDirectory = Path.Combine(platformDirectory, ".metadata", "images", gameId);
 			var resolvedPath = Path.GetFullPath(fullImagePath);
-			var resolvedMetadataDirectory = Path.GetFullPath(metadataDirectory);
+			var resolvedExpectedDirectory = Path.GetFullPath(expectedImageDirectory);
 			
-			if (!resolvedPath.StartsWith(resolvedMetadataDirectory, StringComparison.OrdinalIgnoreCase))
+			if (!resolvedPath.StartsWith(resolvedExpectedDirectory, StringComparison.OrdinalIgnoreCase))
 			{
 				return BadRequest("Invalid image path");
 			}
@@ -248,8 +213,8 @@ public class MetadataController : ControllerBase
 			SetImageCacheHeaders(etag, lastModified);
 
 			// Return the image file
-			var fileStream = new FileStream(fullImagePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-			return File(fileStream, contentType);
+			var data = System.IO.File.ReadAllBytes(fullImagePath); // Ensure file exists before opening stream
+			return File(data, contentType);
 		}
 		catch (Exception ex)
 		{

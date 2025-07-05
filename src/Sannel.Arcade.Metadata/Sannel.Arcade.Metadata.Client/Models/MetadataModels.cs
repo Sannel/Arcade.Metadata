@@ -11,6 +11,7 @@ public class PlatformInfo
 
 public class GameMetadata
 {
+	public string Id { get; set; } = string.Empty; // Add ID field
 	public string Name { get; set; } = string.Empty;
 	public string? Description { get; set; }
 	public string Platform { get; set; } = string.Empty;

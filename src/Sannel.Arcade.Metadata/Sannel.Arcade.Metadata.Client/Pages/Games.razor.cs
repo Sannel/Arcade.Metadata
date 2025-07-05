@@ -96,6 +96,18 @@ public partial class Games : ComponentBase
 	}
 
 	/// <summary>
+	/// Navigates to the game details page using the game ID.
+	/// </summary>
+	/// <param name="game">The game metadata containing the ID.</param>
+	private void NavigateToGameDetails(GameMetadata game)
+	{
+		if (!string.IsNullOrEmpty(game.Id) && !string.IsNullOrEmpty(Platform))
+		{
+			Navigation.NavigateTo($"/games/{Platform}/{game.Id}");
+		}
+	}
+
+	/// <summary>
 	/// Handles image loading errors by clearing the image URL to prevent broken image displays.
 	/// </summary>
 	/// <param name="game">The game metadata to update.</param>
