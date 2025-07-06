@@ -5,12 +5,12 @@
 <MudDialog>
 	<TitleContent>
 		<div class="d-flex align-center">
-			<MudIcon Icon="@Icons.Material.Filled.Info" Class="mr-2" />
-			<MudText Typo="Typo.h6">@GameMetadata?.Name ?? "Game Information"</MudText>
+			<MudIcon Icon="@Icons.Material.Filled.Edit" Class="mr-2" />
+			<MudText Typo="Typo.h6">Edit Game: @(_editModel?.Name ?? "Game Information")</MudText>
 		</div>
 	</TitleContent>
 	<DialogContent>
-			@if (_isLoading)
+		@if (_isLoading)
 		{
 			<div class="d-flex justify-center align-center pa-8">
 				<MudProgressCircular Indeterminate="true" />
@@ -23,150 +23,193 @@
 				@_errorMessage
 			</MudAlert>
 		}
-		else if (GameMetadata != null)
+		else if (_editModel != null)
 		{
-			<MudContainer Class="pa-0">
-				<MudGrid>
-					<!-- Cover Image and Basic Info -->
-					<MudItem xs="12" md="4">
-						@if (!string.IsNullOrEmpty(GameMetadata.CoverUrl))
-						{
-							<MudPaper Class="cover-image-container mb-3" Elevation="2">
-								<img src="@GetImageUrl(GameMetadata.CoverUrl)" 
-									 alt="@GameMetadata.Name cover" 
-									 class="cover-image"
-									 @onerror="@HandleCoverImageError" />
-							</MudPaper>
-						}
-						else
-						{
-							<MudPaper Class="cover-image-container mb-3 d-flex align-center justify-center" Elevation="2">
-								<MudIcon Icon="@Icons.Material.Filled.VideogameAsset" Size="Size.Large" Color="Color.Primary" />
-							</MudPaper>
-						}
-
-						<!-- Quick Info Cards -->
-						<MudStack Spacing="2">
-							@if (!string.IsNullOrEmpty(GameMetadata.Region))
+			<EditForm Model="_editModel" OnValidSubmit="SaveChanges">
+				<DataAnnotationsValidator />
+				<MudContainer Class="pa-0">
+					<MudGrid>
+						<!-- Cover Image and Basic Info -->
+						<MudItem xs="12" md="4">
+							@if (!string.IsNullOrEmpty(_editModel.CoverUrl))
 							{
-								<MudPaper Class="pa-2" Elevation="1">
-									<MudText Typo="Typo.caption" Color="Color.Secondary">Region</MudText>
-									<MudText Typo="Typo.body2">@GameMetadata.Region</MudText>
+								<MudPaper Class="cover-image-container mb-3" Elevation="2">
+									<img src="@GetImageUrl(_editModel.CoverUrl)" 
+										 alt="@_editModel.Name cover" 
+										 class="cover-image"
+										 @onerror="@HandleCoverImageError" />
+								</MudPaper>
+							}
+							else
+							{
+								<MudPaper Class="cover-image-container mb-3 d-flex align-center justify-center" Elevation="2">
+									<MudIcon Icon="@Icons.Material.Filled.VideogameAsset" Size="Size.Large" Color="Color.Primary" />
 								</MudPaper>
 							}
 
-							@if (!string.IsNullOrEmpty(GameMetadata.MetadataProvider))
-							{
-								<MudPaper Class="pa-2" Elevation="1">
-									<MudText Typo="Typo.caption" Color="Color.Secondary">Metadata Provider</MudText>
-									<MudText Typo="Typo.body2">@GameMetadata.MetadataProvider</MudText>
-								</MudPaper>
-							}
+							<!-- Editable Basic Info -->
+							<MudStack Spacing="2">
+								<MudTextField @bind-Value="_editModel.Region"
+											  Label="Region"
+											  Variant="Variant.Outlined"
+											  FullWidth="true"
+											  For="@(() => _editModel.Region)" />
 
-							@if (!string.IsNullOrEmpty(GameMetadata.RomFileName))
-							{
-								<MudPaper Class="pa-2" Elevation="1">
-									<MudText Typo="Typo.caption" Color="Color.Secondary">ROM File</MudText>
-									<MudText Typo="Typo.body2">@GameMetadata.RomFileName</MudText>
-								</MudPaper>
-							}
-						</MudStack>
-					</MudItem>
+								<MudTextField @bind-Value="_editModel.MetadataProvider"
+											  Label="Metadata Provider"
+											  Variant="Variant.Outlined"
+											  FullWidth="true"
+											  ReadOnly="true"
+											  For="@(() => _editModel.MetadataProvider)" />
 
-					<!-- Main Content -->
-					<MudItem xs="12" md="8">
-						<MudStack Spacing="3">
-							<!-- Description -->
-							@if (!string.IsNullOrEmpty(GameMetadata.Description))
-							{
+								<MudTextField @bind-Value="_editModel.RomFileName"
+											  Label="ROM File"
+											  Variant="Variant.Outlined"
+											  FullWidth="true"
+											  ReadOnly="true"
+											  For="@(() => _editModel.RomFileName)" />
+							</MudStack>
+						</MudItem>
+
+						<!-- Main Content -->
+						<MudItem xs="12" md="8">
+							<MudStack Spacing="3">
+								<!-- Name -->
+								<MudPaper Class="pa-3" Elevation="1">
+									<MudTextField @bind-Value="_editModel.Name"
+												  Label="Game Name"
+												  Variant="Variant.Outlined"
+												  FullWidth="true"
+												  Required="true"
+												  For="@(() => _editModel.Name)" />
+								</MudPaper>
+
+								<!-- Description -->
 								<MudPaper Class="pa-3" Elevation="1">
 									<MudText Typo="Typo.subtitle2" Class="mb-2">
 										<MudIcon Icon="@Icons.Material.Filled.Description" Size="Size.Small" Class="mr-1" />
 										Description
 									</MudText>
-									<MudText Typo="Typo.body2">@GameMetadata.Description</MudText>
+									<MudTextField @bind-Value="_editModel.Description"
+												  Variant="Variant.Outlined"
+												  Lines="4"
+												  FullWidth="true"
+												  For="@(() => _editModel.Description)" />
 								</MudPaper>
-							}
 
-							<!-- Genres -->
-							@if (GameMetadata.Genres.Count > 0)
-							{
+								<!-- Genres -->
 								<MudPaper Class="pa-3" Elevation="1">
 									<MudText Typo="Typo.subtitle2" Class="mb-2">
 										<MudIcon Icon="@Icons.Material.Filled.Category" Size="Size.Small" Class="mr-1" />
 										Genres
 									</MudText>
 									<div class="d-flex flex-wrap ga-2">
-										@foreach (var genre in GameMetadata.Genres)
+										@foreach (var genre in _editModel.Genres)
 										{
 											<MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">
 												@genre
+												<MudIconButton Icon="@Icons.Material.Filled.Close" 
+															   Size="Size.Small" 
+															   OnClick="@(() => RemoveGenre(genre))"
+															   Style="margin-left: 4px;" />
 											</MudChip>
 										}
 									</div>
+									<MudTextField @bind-Value="_newGenre"
+												  Label="Add new genre"
+												  Variant="Variant.Outlined"
+												  FullWidth="true"
+												  Class="mt-2"
+												  Adornment="Adornment.End"
+												  AdornmentIcon="@Icons.Material.Filled.Add"
+												  OnAdornmentClick="AddGenre"
+												  @onkeypress="@((e) => { if (e.Key == "Enter") AddGenre(); })" />
 								</MudPaper>
-							}
 
-							<!-- Alternate Names -->
-							@if (GameMetadata.AlternateNames.Count > 0)
-							{
+								<!-- Alternate Names -->
 								<MudPaper Class="pa-3" Elevation="1">
 									<MudText Typo="Typo.subtitle2" Class="mb-2">
 										<MudIcon Icon="@Icons.Material.Filled.AlternateEmail" Size="Size.Small" Class="mr-1" />
 										Alternate Names
 									</MudText>
-									<MudText Typo="Typo.body2">@string.Join(", ", GameMetadata.AlternateNames)</MudText>
+									<MudTextField @bind-Value="_alternateNamesText"
+												  Variant="Variant.Outlined"
+												  Lines="2"
+												  FullWidth="true"
+												  HelperText="Enter alternate names separated by commas"
+												  For="@(() => _alternateNamesText)" />
 								</MudPaper>
-							}
 
-							<!-- Artwork Images -->
-							@if (GameMetadata.ArtworkUrls.Count > 0)
-							{
-								<MudPaper Class="pa-3" Elevation="1">
-									<MudText Typo="Typo.subtitle2" Class="mb-2">
-										<MudIcon Icon="@Icons.Material.Filled.Palette" Size="Size.Small" Class="mr-1" />
-										Artwork (@GameMetadata.ArtworkUrls.Count)
-									</MudText>
-									<div class="image-grid">
-										@foreach (var artworkUrl in GameMetadata.ArtworkUrls)
-										{
-											<div class="thumbnail-container" @onclick="@(() => ShowImagePreview(artworkUrl, GameMetadata.Name + " Artwork"))">
-												<img src="@GetImageUrl(artworkUrl)" 
-													 alt="@GameMetadata.Name artwork" 
-													 class="thumbnail-image"
-													 @onerror="@(() => HandleImageError(artworkUrl))" />
-											</div>
-										}
-									</div>
-								</MudPaper>
-							}
+								<!-- Videos (Read-only) -->
+								@if (_editModel.VideoUrls.Count > 0)
+								{
+									<MudPaper Class="pa-3" Elevation="1">
+										<MudText Typo="Typo.subtitle2" Class="mb-2">
+											<MudIcon Icon="@Icons.Material.Filled.VideoFile" Size="Size.Small" Class="mr-1" />
+											Videos (@_editModel.VideoUrls.Count) - Read Only
+										</MudText>
+										<div class="image-grid">
+											@foreach (var videoUrl in _editModel.VideoUrls)
+											{
+												<div class="thumbnail-container">
+													<iframe width="420" height="236"
+															src="@videoUrl">
+													</iframe>
+												</div>
+											}
+										</div>
+									</MudPaper>
+								}
 
-							<!-- Screenshots -->
-							@if (GameMetadata.ScreenShots.Count > 0)
-							{
-								<MudPaper Class="pa-3" Elevation="1">
-									<MudText Typo="Typo.subtitle2" Class="mb-2">
-										<MudIcon Icon="@Icons.Material.Filled.Screenshot" Size="Size.Small" Class="mr-1" />
-										Screenshots (@GameMetadata.ScreenShots.Count)
-									</MudText>
-									<div class="image-grid">
-										@foreach (var screenshotUrl in GameMetadata.ScreenShots)
-										{
-											<div class="thumbnail-container" @onclick="@(() => ShowImagePreview(screenshotUrl, GameMetadata.Name + " Screenshot"))">
-												<img src="@GetImageUrl(screenshotUrl)"
-												 			  alt = "@GameMetadata.Name screenshot"
-										 			  class= "thumbnail-image"
-													 @onerror="@(() => HandleImageError(screenshotUrl))" />
-											</div>
-										}
-									</div>
-								</MudPaper>
-							}
+								<!-- Artwork Images -->
+								@if (_editModel.ArtworkUrls.Count > 0)
+								{
+									<MudPaper Class="pa-3" Elevation="1">
+										<MudText Typo="Typo.subtitle2" Class="mb-2">
+											<MudIcon Icon="@Icons.Material.Filled.Palette" Size="Size.Small" Class="mr-1" />
+											Artwork (@_editModel.ArtworkUrls.Count)
+										</MudText>
+										<div class="image-grid">
+											@foreach (var artworkUrl in _editModel.ArtworkUrls)
+											{
+												<div class="thumbnail-container" @onclick="@(() => ShowImagePreview(artworkUrl, _editModel.Name + " Artwork"))">
+													<img src="@GetImageUrl(artworkUrl)" 
+														 alt="@_editModel.Name artwork" 
+														 class="thumbnail-image"
+														 @onerror="@(() => HandleImageError(artworkUrl))" />
+												</div>
+											}
+										</div>
+									</MudPaper>
+								}
 
-						</MudStack>
-					</MudItem>
-				</MudGrid>
-			</MudContainer>
+								<!-- Screenshots -->
+								@if (_editModel.ScreenShots.Count > 0)
+								{
+									<MudPaper Class="pa-3" Elevation="1">
+										<MudText Typo="Typo.subtitle2" Class="mb-2">
+											<MudIcon Icon="@Icons.Material.Filled.Screenshot" Size="Size.Small" Class="mr-1" />
+											Screenshots (@_editModel.ScreenShots.Count)
+										</MudText>
+										<div class="image-grid">
+											@foreach (var screenshotUrl in _editModel.ScreenShots)
+											{
+												<div class="thumbnail-container" @onclick="@(() => ShowImagePreview(screenshotUrl, _editModel.Name + " Screenshot"))">
+													<img src="@GetImageUrl(screenshotUrl)"
+															  alt = "@_editModel.Name screenshot"
+															  class= "thumbnail-image"
+														 @onerror="@(() => HandleImageError(screenshotUrl))" />
+												</div>
+											}
+										</div>
+									</MudPaper>
+								}
+
+							</MudStack>
+						</MudItem>
+					</MudGrid>
+				</MudContainer>
+			</EditForm>
 		}
 		else
 		{
@@ -174,11 +217,23 @@
 		}
 	</DialogContent>
 	<DialogActions>
-		<MudButton Color="Color.Primary" OnClick="Submit">Close</MudButton>
+		<MudButton Color="Color.Secondary" OnClick="Cancel">Cancel</MudButton>
+		<MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveChanges" Disabled="_isSaving">
+			@if (_isSaving)
+			{
+				<MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+				<MudText Class="ms-2">Saving...</MudText>
+			}
+			else
+			{
+				<MudText>Save</MudText>
+			}
+		</MudButton>
 	</DialogActions>
 </MudDialog>
 
-<style> .cover-image-container {
+<style>
+	.cover-image-container {
 		width: 100%;
 		aspect-ratio: 3 / 4;
 		min-height: 200px;
@@ -239,6 +294,7 @@
 		color: #999;
 	}
 </style>
+
 @code {
 	[CascadingParameter]
 	private IMudDialogInstance MudDialog { get; set; } = null!;
@@ -247,6 +303,7 @@
 	private IMetadataService MetadataService { get; set; } = null!;
 
 	private GameMetadata? GameMetadata { get; set; }
+	private GameMetadata? _editModel { get; set; }
 
 	[Parameter]
 	public string? PlatformName { get; set; } = null;
@@ -256,9 +313,15 @@
 
 	private HashSet<string> _failedImages = new();
 	private bool _isLoading = false;
+	private bool _isSaving = false;
 	private string _errorMessage = string.Empty;
+	private string _successMessage = string.Empty;
 
-	private void Submit() => MudDialog.Close(DialogResult.Ok(true));
+	// Genre management
+	private string _newGenre = string.Empty;
+
+	// Alternate names as text
+	private string _alternateNamesText = string.Empty;
 
 	protected override async Task OnParametersSetAsync()
 	{
@@ -282,6 +345,31 @@
 			{
 				_errorMessage = "Game metadata not found.";
 			}
+			else
+			{
+				// Create editable copy
+				_editModel = new GameMetadata
+				{
+					Id = GameMetadata.Id,
+					Name = GameMetadata.Name,
+					Description = GameMetadata.Description,
+					MetadataProvider = GameMetadata.MetadataProvider,
+					ProviderId = GameMetadata.ProviderId,
+					CoverUrl = GameMetadata.CoverUrl,
+					ArtworkUrls = new List<string>(GameMetadata.ArtworkUrls),
+					ScreenShots = new List<string>(GameMetadata.ScreenShots),
+					VideoUrls = new List<string>(GameMetadata.VideoUrls),
+					Genres = new List<string>(GameMetadata.Genres),
+					AlternateNames = new List<string>(GameMetadata.AlternateNames),
+					Region = GameMetadata.Region,
+					RomFilePath = GameMetadata.RomFilePath,
+					RelativePath = GameMetadata.RelativePath,
+					RomFileName = GameMetadata.RomFileName
+				};
+
+				// Initialize form data
+				_alternateNamesText = string.Join(", ", _editModel.AlternateNames);
+			}
 		}
 		catch (Exception ex)
 		{
@@ -294,9 +382,75 @@
 		}
 	}
 
+	private async Task SaveChanges()
+	{
+		if (_editModel == null || PlatformName == null || GameId == null) return;
+
+		_isSaving = true;
+		_errorMessage = string.Empty;
+		_successMessage = string.Empty;
+		StateHasChanged();
+
+		try
+		{
+			// Update alternate names from text
+			_editModel.AlternateNames = _alternateNamesText
+				.Split(',', StringSplitOptions.RemoveEmptyEntries)
+				.Select(s => s.Trim())
+				.Where(s => !string.IsNullOrEmpty(s))
+				.ToList();
+
+			var success = await MetadataService.UpdateGameAsync(PlatformName, GameId, _editModel);
+
+			if (success)
+			{
+				_successMessage = "Game metadata updated successfully!";
+				// Close dialog with success result
+				MudDialog.Close(DialogResult.Ok(true));
+			}
+			else
+			{
+				_errorMessage = "Failed to update game metadata. Please try again.";
+			}
+		}
+		catch (Exception ex)
+		{
+			_errorMessage = $"Error saving game metadata: {ex.Message}";
+		}
+		finally
+		{
+			_isSaving = false;
+			StateHasChanged();
+		}
+	}
+
+	private void Cancel() => MudDialog.Close(DialogResult.Cancel());
+
+	private void AddGenre()
+	{
+		if (!string.IsNullOrWhiteSpace(_newGenre) && _editModel != null)
+		{
+			var genre = _newGenre.Trim();
+			if (!_editModel.Genres.Contains(genre))
+			{
+				_editModel.Genres.Add(genre);
+				_newGenre = string.Empty;
+				StateHasChanged();
+			}
+		}
+	}
+
+	private void RemoveGenre(string genre)
+	{
+		if (_editModel != null)
+		{
+			_editModel.Genres.Remove(genre);
+			StateHasChanged();
+		}
+	}
+
 	private void HandleCoverImageError()
 	{
-		// Handle cover image load error - could set a flag to show placeholder
 		StateHasChanged();
 	}
 
@@ -310,7 +464,6 @@
 	{
 		if (_failedImages.Contains(imageUrl)) return;
 
-		// Create image preview dialog
 		var parameters = new DialogParameters
 		{
 			["ImageUrl"] = imageUrl,
@@ -323,28 +476,6 @@
 			FullWidth = true,
 			CloseButton = true
 		};
-	}
-
-	private async Task DownloadMetadata()
-	{
-		if (PlatformName == null || GameId == null) return;
-
-		try
-		{
-			var metadataUrl = $"/api/v1/metadata/platforms/{Uri.EscapeDataString(PlatformName)}/games/{Uri.EscapeDataString(GameId)}/metadata";
-
-			// Open the download URL in a new tab/window
-			await Task.Run(() =>
-			{
-				// In a real Blazor WebAssembly app, you would use IJSRuntime to open the download URL
-				// For now, this is a placeholder for the download functionality
-			});
-		}
-		catch (Exception ex)
-		{
-			// Handle download error - could show a snackbar with error message
-			Console.WriteLine($"Error downloading metadata: {ex.Message}");
-		}
 	}
 
 	private string GetImageUrl(string imageName)

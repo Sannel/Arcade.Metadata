@@ -132,6 +132,193 @@ public class MetadataController : ControllerBase
 	}
 
 	/// <summary>
+	/// Updates a specific game's metadata by ID.
+	/// </summary>
+	/// <param name="platformName">The name of the platform.</param>
+	/// <param name="gameId">The ID of the game.</param>
+	/// <param name="gameMetadata">The updated game metadata.</param>
+	/// <returns>Success or error response.</returns>
+	[HttpPut("platforms/{platformName}/games/{gameId}/metadata")]
+	public async Task<IActionResult> UpdateGameMetadata(string platformName, string gameId, [FromBody] GameMetadata gameMetadata, CancellationToken cancellationToken = default)
+	{
+		if (string.IsNullOrWhiteSpace(platformName) || string.IsNullOrWhiteSpace(gameId))
+		{
+			return BadRequest("Platform name and game ID are required");
+		}
+
+		if (gameMetadata == null)
+		{
+			return BadRequest("Game metadata is required");
+		}
+
+		try
+		{
+			var romsDirectory = await _mediator.Send(new GetSettingRequest()
+			{
+				Key = "roms.root"
+			}, cancellationToken);
+
+			if (string.IsNullOrEmpty(romsDirectory))
+			{
+				return BadRequest("ROMs directory is not configured");
+			}
+
+			var platformDirectory = Path.Combine(romsDirectory, platformName);
+			if (!Directory.Exists(platformDirectory))
+			{
+				return NotFound("Platform directory not found");
+			}
+
+			var metadataDirectory = Path.Combine(platformDirectory, ".metadata");
+			if (!Directory.Exists(metadataDirectory))
+			{
+				return NotFound("Metadata directory not found");
+			}
+
+			var gameMetadataPath = Path.Combine(metadataDirectory, $"{gameId}.json");
+
+			if (!System.IO.File.Exists(gameMetadataPath))
+			{
+				return NotFound("Game metadata not found");
+			}
+
+			// Security check: ensure the resolved path is within the expected directory structure
+			var resolvedPath = Path.GetFullPath(gameMetadataPath);
+			var resolvedExpectedDirectory = Path.GetFullPath(metadataDirectory);
+			
+			if (!resolvedPath.StartsWith(resolvedExpectedDirectory, StringComparison.OrdinalIgnoreCase))
+			{
+				return BadRequest("Invalid metadata file path");
+			}
+
+			// Ensure the game ID matches what's in the URL
+			gameMetadata.Id = gameId;
+
+			// Serialize the updated metadata with proper formatting
+			var jsonOptions = new JsonSerializerOptions
+			{
+				PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+				WriteIndented = true,
+				DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+			};
+
+			var updatedJsonContent = JsonSerializer.Serialize(gameMetadata, jsonOptions);
+
+			// Write the updated metadata to file
+			await System.IO.File.WriteAllTextAsync(gameMetadataPath, updatedJsonContent, cancellationToken);
+
+			// Update the games.json file after successful metadata update
+			await UpdatePlatformGamesListAsync(platformDirectory, cancellationToken);
+
+			return Ok(new { Success = true, Message = "Game metadata updated successfully" });
+		}
+		catch (Exception ex)
+		{
+			return BadRequest($"Error updating game metadata: {ex.Message}");
+		}
+	}
+
+	/// <summary>
+	/// Updates the games.json file for a platform by reading all individual game metadata files.
+	/// </summary>
+	/// <param name="platformDirectory">The platform directory path.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>Task representing the async operation.</returns>
+	private async Task UpdatePlatformGamesListAsync(string platformDirectory, CancellationToken cancellationToken)
+	{
+		var metadataDirectory = Path.Combine(platformDirectory, ".metadata");
+		var gamesListPath = Path.Combine(metadataDirectory, "games.json");
+		
+		var gamesList = new List<object>();
+
+		if (Directory.Exists(metadataDirectory))
+		{
+			// Look for JSON files directly in the .metadata directory
+			foreach (var jsonFile in Directory.EnumerateFiles(metadataDirectory, "*.json"))
+			{
+				if (cancellationToken.IsCancellationRequested)
+					break;
+
+				// Skip the games.json file itself
+				if (Path.GetFileName(jsonFile).Equals("games.json", StringComparison.OrdinalIgnoreCase))
+					continue;
+
+				try
+				{
+					var jsonContent = await System.IO.File.ReadAllTextAsync(jsonFile, cancellationToken);
+					using var document = JsonDocument.Parse(jsonContent);
+					var root = document.RootElement;
+
+					// Extract basic game information
+					var gameEntry = new
+					{
+						Id = root.TryGetProperty("id", out var idElement) ? idElement.GetString() ?? "unknown" : "unknown",
+						Name = root.TryGetProperty("name", out var nameElement) ? nameElement.GetString() ?? "Unknown" : "Unknown",
+						Description = root.TryGetProperty("description", out var descElement) ? descElement.GetString() : null,
+						RomFileName = root.TryGetProperty("romFileName", out var romFileNameElement) ? romFileNameElement.GetString() : null,
+						Region = root.TryGetProperty("region", out var regionElement) ? regionElement.GetString() : null,
+						MetadataProvider = root.TryGetProperty("metadataProvider", out var providerElement) ? providerElement.GetString() ?? "Unknown" : "Unknown",
+						ProviderId = root.TryGetProperty("providerId", out var providerIdElement) ? providerIdElement.GetString() : null,
+						CoverUrl = root.TryGetProperty("coverUrl", out var coverElement) ? coverElement.GetString() : null,
+						ArtworkUrls = ExtractStringArray(root, "artworkUrls"),
+						ScreenShots = ExtractStringArray(root, "screenShots"),
+						VideoUrls = ExtractStringArray(root, "videoUrls"),
+						Genres = ExtractStringArray(root, "genres"),
+						AlternateNames = ExtractStringArray(root, "alternateNames"),
+						MetadataFilePath = Path.GetFileName(jsonFile)
+					};
+
+					gamesList.Add(gameEntry);
+				}
+				catch (Exception)
+				{
+					// Continue processing other files if one fails to parse
+					continue;
+				}
+			}
+		}
+
+		// Sort games by name
+		var sortedGames = gamesList.OrderBy(g => ((dynamic)g).Name).ToList();
+
+		// Create the games list JSON
+		var gamesListData = new
+		{
+			Platform = Path.GetFileName(platformDirectory),
+			TotalGames = sortedGames.Count,
+			LastUpdated = DateTime.UtcNow,
+			Games = sortedGames
+		};
+
+		var gamesListJsonOptions = new JsonSerializerOptions
+		{
+			WriteIndented = true,
+			PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+		};
+
+		var gamesListJson = JsonSerializer.Serialize(gamesListData, gamesListJsonOptions);
+		await System.IO.File.WriteAllTextAsync(gamesListPath, gamesListJson, Encoding.UTF8, cancellationToken);
+	}
+
+	/// <summary>
+	/// Extracts a string array from a JSON element property.
+	/// </summary>
+	/// <param name="root">The root JSON element.</param>
+	/// <param name="propertyName">The property name to extract.</param>
+	/// <returns>List of strings from the array property.</returns>
+	private static List<string> ExtractStringArray(JsonElement root, string propertyName)
+	{
+		if (root.TryGetProperty(propertyName, out var arrayElement) && arrayElement.ValueKind == JsonValueKind.Array)
+		{
+			return arrayElement.EnumerateArray()
+				.Where(e => e.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(e.GetString()))
+				.Select(e => e.GetString()!)
+				.ToList();
+		}
+		return new List<string>();
+	}
+
+	/// <summary>
 	/// Downloads a game image by game ID and image filename.
 	/// </summary>
 	/// <param name="platformName">The platform name.</param>

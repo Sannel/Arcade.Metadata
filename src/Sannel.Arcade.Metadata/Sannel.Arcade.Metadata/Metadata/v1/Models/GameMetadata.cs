@@ -11,6 +11,7 @@ public class GameMetadata
 	public string? CoverUrl { get; set; }
 	public List<string> ArtworkUrls { get; set; } = [];
 	public List<string> ScreenShots { get; set; } = [];
+	public List<string> VideoUrls { get; set; } = [];
 	public List<string> Genres { get; set; } = [];
 	public List<string> AlternateNames { get; set; } = [];
 	public string? Region { get; set; }

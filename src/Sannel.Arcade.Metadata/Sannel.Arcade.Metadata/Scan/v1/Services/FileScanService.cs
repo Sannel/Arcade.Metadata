@@ -850,6 +850,9 @@ public class FileScanService : IScanService
 		var artworkPaths = await DownloadImagesWithFallbackAsync(gameInfo.ArtworkUrls, imagesDirectory, "artwork", "artwork", cancellationToken);
 		var screenshotPaths = await DownloadImagesWithFallbackAsync(gameInfo.ScreenShots, imagesDirectory, "screenshot", "screenshot", cancellationToken);
 
+		 // For videos, we save the URLs directly without downloading the files (videos are typically too large)
+		var videoUrls = gameInfo.VideoUrls.Where(url => !string.IsNullOrEmpty(url)).ToList();
+
 		// Create an anonymous object that includes the original GameInfo plus the region, local image paths, ROM file name, and generated ID
 		var gameMetadata = new
 		{
@@ -862,6 +865,7 @@ public class FileScanService : IScanService
 			CoverUrl = coverImagePath, // Use local path instead of remote URL
 			ArtworkUrls = artworkPaths, // Use local paths instead of remote URLs
 			ScreenShots = screenshotPaths, // Use local paths instead of remote URLs
+			VideoUrls = videoUrls, // Keep video URLs as remote URLs
 			gameInfo.Genres,
 			gameInfo.AlternateNames, // Include alternate names in metadata
 			Region = region, // Add the region field
@@ -960,6 +964,9 @@ public class FileScanService : IScanService
 						MetadataProvider = root.TryGetProperty("metadataProvider", out var providerElement) ? providerElement.GetString() ?? "Unknown" : "Unknown",
 						ProviderId = root.TryGetProperty("providerId", out var providerIdElement) ? providerIdElement.GetString() : null,
 						CoverUrl = root.TryGetProperty("coverUrl", out var coverElement) ? coverElement.GetString() : null,
+						ArtworkUrls = ExtractStringArray(root, "artworkUrls"),
+						ScreenShots = ExtractStringArray(root, "screenShots"),
+						VideoUrls = ExtractStringArray(root, "videoUrls"),
 						Genres = ExtractStringArray(root, "genres"),
 						AlternateNames = ExtractStringArray(root, "alternateNames"),
 						MetadataFilePath = Path.GetFileName(jsonFile) // Just the filename since it's directly in .metadata now
@@ -1021,6 +1028,7 @@ public class FileScanService : IScanService
 			CoverUrl = null, // No cover image
 			ArtworkUrls = new List<string?>(), // No artwork
 			ScreenShots = new List<string?>(), // No screenshots
+			VideoUrls = new List<string?>(), // No videos
 			Genres = new List<string>(), // No genre information
 			AlternateNames = new List<string>() // No alternate names
 		};

@@ -379,6 +379,33 @@ public class MetadataService : IMetadataService
 						.ToList();
 				}
 
+				 // Handle artwork URLs array
+				if (gameElement.TryGetProperty("artworkUrls", out var artworkUrlsElement) && artworkUrlsElement.ValueKind == JsonValueKind.Array)
+				{
+					gameMetadata.ArtworkUrls = artworkUrlsElement.EnumerateArray()
+						.Where(e => e.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(e.GetString()))
+						.Select(e => e.GetString()!)
+						.ToList();
+				}
+
+				// Handle screenshots array
+				if (gameElement.TryGetProperty("screenShots", out var screenShotsElement) && screenShotsElement.ValueKind == JsonValueKind.Array)
+				{
+					gameMetadata.ScreenShots = screenShotsElement.EnumerateArray()
+						.Where(e => e.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(e.GetString()))
+						.Select(e => e.GetString()!)
+						.ToList();
+				}
+
+				// Handle video URLs array
+				if (gameElement.TryGetProperty("videoUrls", out var videoUrlsElement) && videoUrlsElement.ValueKind == JsonValueKind.Array)
+				{
+					gameMetadata.VideoUrls = videoUrlsElement.EnumerateArray()
+						.Where(e => e.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(e.GetString()))
+						.Select(e => e.GetString()!)
+						.ToList();
+				}
+
 				// For games.json, we need to load additional details from the individual metadata file if needed
 				// The games.json contains summary info, but for full metadata we might need the individual file
 				// For now, we'll use what's available in games.json since it contains the essential information
@@ -477,6 +504,15 @@ public class MetadataService : IMetadataService
 								? $"/api/v1/metadata/game-images/{platformId}/{imagePath}"
 								: imagePath;
 						})
+						.ToList();
+				}
+
+				// Handle video URLs array - these remain as external URLs (YouTube, etc.)
+				if (root.TryGetProperty("videoUrls", out var videosElement) && videosElement.ValueKind == JsonValueKind.Array)
+				{
+					gameMetadata.VideoUrls = videosElement.EnumerateArray()
+						.Where(e => e.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(e.GetString()))
+						.Select(e => e.GetString()!)
 						.ToList();
 				}
 

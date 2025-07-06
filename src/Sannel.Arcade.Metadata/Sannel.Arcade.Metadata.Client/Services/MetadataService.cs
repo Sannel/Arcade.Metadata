@@ -8,6 +8,7 @@ public interface IMetadataService
 	Task<GetPlatformsResponse> GetPlatformsAsync();
 	Task<GetGamesResponse> GetGamesAsync(string platformName);
 	Task<GameMetadata?> GetGameAsync(string platformName, string gameId);
+	Task<bool> UpdateGameAsync(string platformName, string gameId, GameMetadata gameMetadata);
 }
 
 public class MetadataService : IMetadataService
@@ -82,6 +83,20 @@ public class MetadataService : IMetadataService
 		{
 			Console.WriteLine(ex);
 			return null;
+		}
+	}
+
+	public async Task<bool> UpdateGameAsync(string platformName, string gameId, GameMetadata gameMetadata)
+	{
+		try
+		{
+			var response = await _httpClient.PutAsJsonAsync($"api/v1/metadata/platforms/{Uri.EscapeDataString(platformName)}/games/{Uri.EscapeDataString(gameId)}/metadata", gameMetadata, _jsonOptions.Value);
+			return response.IsSuccessStatusCode;
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine(ex);
+			return false;
 		}
 	}
 }

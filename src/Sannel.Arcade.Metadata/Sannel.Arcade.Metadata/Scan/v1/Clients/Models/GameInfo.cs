@@ -11,6 +11,7 @@ public class GameInfo
 	public string? CoverUrl { get; internal set; }
 	public List<string?> ArtworkUrls { get; internal set; } = [];
 	public List<string?> ScreenShots { get; internal set; } = [];
+	public List<string?> VideoUrls { get; internal set; } = [];
 	public List<string?> Genres { get; internal set; } = [];
 	public List<string> AlternateNames { get; internal set; } = [];
 }
