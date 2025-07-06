@@ -7,6 +7,7 @@ public interface IMetadataService
 {
 	Task<GetPlatformsResponse> GetPlatformsAsync();
 	Task<GetGamesResponse> GetGamesAsync(string platformName);
+	Task<GameMetadata?> GetGameAsync(string platformName, string gameId);
 }
 
 public class MetadataService : IMetadataService
@@ -43,7 +44,7 @@ public class MetadataService : IMetadataService
 			var response = await _httpClient.GetAsync($"api/v1/metadata/platforms/{Uri.EscapeDataString(platformName)}/games");
 			if (response.IsSuccessStatusCode)
 			{
-				var result = await response.Content.ReadFromJsonAsync<GetGamesResponse>();
+				var result = await response.Content.ReadFromJsonAsync<GetGamesResponse>(_jsonOptions.Value);
 				return result ?? new GetGamesResponse { Success = false, Message = "Failed to parse response" };
 			}
 			return new GetGamesResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
@@ -51,6 +52,36 @@ public class MetadataService : IMetadataService
 		catch (Exception ex)
 		{
 			return new GetGamesResponse { Success = false, Message = ex.Message };
+		}
+	}
+
+	private readonly static Lazy<System.Text.Json.JsonSerializerOptions> _jsonOptions = new(() =>
+	{
+		var c = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)
+		{
+			NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString,
+			DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+		};
+		c.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+		return c;
+	});
+
+	public async Task<GameMetadata?> GetGameAsync(string platformName, string gameId)
+	{
+		try
+		{
+			var response = await _httpClient.GetAsync($"api/v1/metadata/platforms/{Uri.EscapeDataString(platformName)}/games/{Uri.EscapeDataString(gameId)}/metadata");
+			if (response.IsSuccessStatusCode)
+			{
+				var result = await response.Content.ReadFromJsonAsync<GameMetadata>(_jsonOptions.Value);
+				return result;
+			}
+			return null;
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine(ex);
+			return null;
 		}
 	}
 }

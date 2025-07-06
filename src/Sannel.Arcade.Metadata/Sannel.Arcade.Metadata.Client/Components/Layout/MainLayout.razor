@@ -1,13 +1,18 @@
 ﻿@inherits LayoutComponentBase
+@* Required *@
 <MudThemeProvider @ref="_mudThemeProvider" @bind-IsDarkMode="_isDarkMode" />
-<MudDialogProvider />
+<MudPopoverProvider />
+
+@* Needed for dialogs *@
+<MudDialogProvider @rendermode="InteractiveAuto" />
+
+@* Needed for snackbars *@
 <MudSnackbarProvider />
 
 <MudLayout>
 	<MudAppBar Elevation="1">
 		<MudIconButton Icon="Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
 		<MudSpacer />
-		<MudLink Href="https://learn.microsoft.com/aspnet/core/" Target="_blank" Color="Color.Inherit">About</MudLink>
 	</MudAppBar>
 	<MudDrawer @bind-Open="_drawerOpen" Elevation="1" Variant="@DrawerVariant.Responsive" Width="250px" ClipMode="DrawerClipMode.Always">
 		<NavMenu />

@@ -223,6 +223,110 @@ public class MetadataController : ControllerBase
 	}
 
 	/// <summary>
+	/// Downloads the metadata file for a specific game by platform name and GameId.
+	/// </summary>
+	/// <param name="platformName">The platform name (e.g., "N64", "NES", "SNES").</param>
+	/// <param name="gameId">The game ID.</param>
+	/// <returns>The metadata file (JSON or XML).</returns>
+	[HttpGet("platforms/{platformName}/games/{gameId}/metadata")]
+	public async Task<IActionResult> GetGameMetadataFile(string platformName, string gameId, CancellationToken cancellationToken = default)
+	{
+		if (string.IsNullOrWhiteSpace(platformName))
+		{
+			return BadRequest("Platform name is required");
+		}
+
+		if (string.IsNullOrWhiteSpace(gameId))
+		{
+			return BadRequest("Game ID is required");
+		}
+
+		// Validate that the platform name is a valid enum value
+		if (!Enum.TryParse<PlatformId>(platformName, true, out var platformId) || platformId == PlatformId.None)
+		{
+			return BadRequest($"Invalid platform name: {platformName}");
+		}
+
+		try
+		{
+			var romsDirectory = await _mediator.Send(new GetSettingRequest()
+			{
+				Key = "roms.root"
+			}, cancellationToken);
+
+			if (string.IsNullOrEmpty(romsDirectory))
+			{
+				return BadRequest("ROMs directory is not configured");
+			}
+
+			var platformDirectory = Path.Combine(romsDirectory, platformName);
+			
+			if (!Directory.Exists(platformDirectory))
+			{
+				return NotFound("Platform directory not found");
+			}
+
+			var metadataDirectory = Path.Combine(platformDirectory, ".metadata");
+			if (!Directory.Exists(metadataDirectory))
+			{
+				return NotFound("Metadata directory not found");
+			}
+
+			// Look for both JSON and XML metadata files
+			var jsonMetadataPath = Path.Combine(metadataDirectory, $"{gameId}.json");
+
+			string metadataFilePath;
+			string contentType;
+			string fileName;
+
+			if (System.IO.File.Exists(jsonMetadataPath))
+			{
+				metadataFilePath = jsonMetadataPath;
+				contentType = "application/json";
+				fileName = $"{gameId}.json";
+			}
+			else
+			{
+				return NotFound("Game metadata file not found");
+			}
+
+			// Security check: ensure the resolved path is within the expected directory structure
+			var resolvedPath = Path.GetFullPath(metadataFilePath);
+			var resolvedExpectedDirectory = Path.GetFullPath(metadataDirectory);
+			
+			if (!resolvedPath.StartsWith(resolvedExpectedDirectory, StringComparison.OrdinalIgnoreCase))
+			{
+				return BadRequest("Invalid metadata file path");
+			}
+
+			// Get file info for caching
+			var fileInfo = new FileInfo(metadataFilePath);
+			var lastModified = fileInfo.LastWriteTimeUtc;
+			var fileSize = fileInfo.Length;
+			
+			// Generate ETag based on file path, size, and last modified time
+			var etag = GenerateETag(metadataFilePath, fileSize, lastModified);
+			
+			// Check if client has cached version
+			if (IsClientCacheValid(etag, lastModified))
+			{
+				return new StatusCodeResult(304); // Not Modified
+			 }
+
+			// Set caching headers
+			SetMetadataCacheHeaders(etag, lastModified);
+
+			// Read and return the metadata file
+			var stream = System.IO.File.Open(metadataFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+			return File(stream, contentType, $"{platformId}_{fileName}");
+		}
+		catch (Exception ex)
+		{
+			return BadRequest($"Error serving metadata file: {ex.Message}");
+		}
+	}
+
+	/// <summary>
 	/// Gets a representative cover image for the platform.
 	/// </summary>
 	/// <param name="platformName">The platform name.</param>
@@ -404,6 +508,30 @@ public class MetadataController : ControllerBase
 		
 		// Set Expires header as fallback for older clients
 		Response.Headers.Expires = DateTime.UtcNow.AddYears(1).ToString("R");
+		
+		// Add Vary header to indicate that response may vary based on request headers
+		Response.Headers.Vary = "If-None-Match, If-Modified-Since";
+	}
+
+	/// <summary>
+	/// Sets the caching headers for metadata file responses.
+	/// </summary>
+	/// <param name="etag">The ETag to set.</param>
+	/// <param name="lastModified">The last modified time.</param>
+	private void SetMetadataCacheHeaders(string etag, DateTime lastModified)
+	{
+		// Set ETag
+		Response.Headers.ETag = etag;
+		
+		// Set Last-Modified
+		Response.Headers.LastModified = lastModified.ToString("R"); // RFC1123 format
+		
+		// Set Cache-Control for moderate caching since metadata may change
+		// Cache for 1 hour, but allow revalidation
+		Response.Headers.CacheControl = "public, max-age=3600, must-revalidate";
+		
+		// Set Expires header as fallback for older clients
+		Response.Headers.Expires = DateTime.UtcNow.AddHours(1).ToString("R");
 		
 		// Add Vary header to indicate that response may vary based on request headers
 		Response.Headers.Vary = "If-None-Match, If-Modified-Since";

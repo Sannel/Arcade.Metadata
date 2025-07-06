@@ -1,0 +1,352 @@
+﻿@using Sannel.Arcade.Metadata.Client.Models
+@using MudBlazor
+@using Sannel.Arcade.Metadata.Client.Services
+
+<MudDialog>
+	<TitleContent>
+		<div class="d-flex align-center">
+			<MudIcon Icon="@Icons.Material.Filled.Info" Class="mr-2" />
+			<MudText Typo="Typo.h6">@GameMetadata?.Name ?? "Game Information"</MudText>
+		</div>
+	</TitleContent>
+	<DialogContent>
+			@if (_isLoading)
+		{
+			<div class="d-flex justify-center align-center pa-8">
+				<MudProgressCircular Indeterminate="true" />
+				<MudText Class="ml-4">Loading game information...</MudText>
+			</div>
+		}
+		else if (!string.IsNullOrEmpty(_errorMessage))
+		{
+			<MudAlert Severity="Severity.Error" Class="ma-4">
+				@_errorMessage
+			</MudAlert>
+		}
+		else if (GameMetadata != null)
+		{
+			<MudContainer Class="pa-0">
+				<MudGrid>
+					<!-- Cover Image and Basic Info -->
+					<MudItem xs="12" md="4">
+						@if (!string.IsNullOrEmpty(GameMetadata.CoverUrl))
+						{
+							<MudPaper Class="cover-image-container mb-3" Elevation="2">
+								<img src="@GetImageUrl(GameMetadata.CoverUrl)" 
+									 alt="@GameMetadata.Name cover" 
+									 class="cover-image"
+									 @onerror="@HandleCoverImageError" />
+							</MudPaper>
+						}
+						else
+						{
+							<MudPaper Class="cover-image-container mb-3 d-flex align-center justify-center" Elevation="2">
+								<MudIcon Icon="@Icons.Material.Filled.VideogameAsset" Size="Size.Large" Color="Color.Primary" />
+							</MudPaper>
+						}
+
+						<!-- Quick Info Cards -->
+						<MudStack Spacing="2">
+							@if (!string.IsNullOrEmpty(GameMetadata.Region))
+							{
+								<MudPaper Class="pa-2" Elevation="1">
+									<MudText Typo="Typo.caption" Color="Color.Secondary">Region</MudText>
+									<MudText Typo="Typo.body2">@GameMetadata.Region</MudText>
+								</MudPaper>
+							}
+
+							@if (!string.IsNullOrEmpty(GameMetadata.MetadataProvider))
+							{
+								<MudPaper Class="pa-2" Elevation="1">
+									<MudText Typo="Typo.caption" Color="Color.Secondary">Metadata Provider</MudText>
+									<MudText Typo="Typo.body2">@GameMetadata.MetadataProvider</MudText>
+								</MudPaper>
+							}
+
+							@if (!string.IsNullOrEmpty(GameMetadata.RomFileName))
+							{
+								<MudPaper Class="pa-2" Elevation="1">
+									<MudText Typo="Typo.caption" Color="Color.Secondary">ROM File</MudText>
+									<MudText Typo="Typo.body2">@GameMetadata.RomFileName</MudText>
+								</MudPaper>
+							}
+						</MudStack>
+					</MudItem>
+
+					<!-- Main Content -->
+					<MudItem xs="12" md="8">
+						<MudStack Spacing="3">
+							<!-- Description -->
+							@if (!string.IsNullOrEmpty(GameMetadata.Description))
+							{
+								<MudPaper Class="pa-3" Elevation="1">
+									<MudText Typo="Typo.subtitle2" Class="mb-2">
+										<MudIcon Icon="@Icons.Material.Filled.Description" Size="Size.Small" Class="mr-1" />
+										Description
+									</MudText>
+									<MudText Typo="Typo.body2">@GameMetadata.Description</MudText>
+								</MudPaper>
+							}
+
+							<!-- Genres -->
+							@if (GameMetadata.Genres.Count > 0)
+							{
+								<MudPaper Class="pa-3" Elevation="1">
+									<MudText Typo="Typo.subtitle2" Class="mb-2">
+										<MudIcon Icon="@Icons.Material.Filled.Category" Size="Size.Small" Class="mr-1" />
+										Genres
+									</MudText>
+									<div class="d-flex flex-wrap ga-2">
+										@foreach (var genre in GameMetadata.Genres)
+										{
+											<MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">
+												@genre
+											</MudChip>
+										}
+									</div>
+								</MudPaper>
+							}
+
+							<!-- Alternate Names -->
+							@if (GameMetadata.AlternateNames.Count > 0)
+							{
+								<MudPaper Class="pa-3" Elevation="1">
+									<MudText Typo="Typo.subtitle2" Class="mb-2">
+										<MudIcon Icon="@Icons.Material.Filled.AlternateEmail" Size="Size.Small" Class="mr-1" />
+										Alternate Names
+									</MudText>
+									<MudText Typo="Typo.body2">@string.Join(", ", GameMetadata.AlternateNames)</MudText>
+								</MudPaper>
+							}
+
+							<!-- Artwork Images -->
+							@if (GameMetadata.ArtworkUrls.Count > 0)
+							{
+								<MudPaper Class="pa-3" Elevation="1">
+									<MudText Typo="Typo.subtitle2" Class="mb-2">
+										<MudIcon Icon="@Icons.Material.Filled.Palette" Size="Size.Small" Class="mr-1" />
+										Artwork (@GameMetadata.ArtworkUrls.Count)
+									</MudText>
+									<div class="image-grid">
+										@foreach (var artworkUrl in GameMetadata.ArtworkUrls)
+										{
+											<div class="thumbnail-container" @onclick="@(() => ShowImagePreview(artworkUrl, GameMetadata.Name + " Artwork"))">
+												<img src="@GetImageUrl(artworkUrl)" 
+													 alt="@GameMetadata.Name artwork" 
+													 class="thumbnail-image"
+													 @onerror="@(() => HandleImageError(artworkUrl))" />
+											</div>
+										}
+									</div>
+								</MudPaper>
+							}
+
+							<!-- Screenshots -->
+							@if (GameMetadata.ScreenShots.Count > 0)
+							{
+								<MudPaper Class="pa-3" Elevation="1">
+									<MudText Typo="Typo.subtitle2" Class="mb-2">
+										<MudIcon Icon="@Icons.Material.Filled.Screenshot" Size="Size.Small" Class="mr-1" />
+										Screenshots (@GameMetadata.ScreenShots.Count)
+									</MudText>
+									<div class="image-grid">
+										@foreach (var screenshotUrl in GameMetadata.ScreenShots)
+										{
+											<div class="thumbnail-container" @onclick="@(() => ShowImagePreview(screenshotUrl, GameMetadata.Name + " Screenshot"))">
+												<img src="@GetImageUrl(screenshotUrl)"
+												 			  alt = "@GameMetadata.Name screenshot"
+										 			  class= "thumbnail-image"
+													 @onerror="@(() => HandleImageError(screenshotUrl))" />
+											</div>
+										}
+									</div>
+								</MudPaper>
+							}
+
+						</MudStack>
+					</MudItem>
+				</MudGrid>
+			</MudContainer>
+		}
+		else
+		{
+			<MudText>No game metadata available.</MudText>
+		}
+	</DialogContent>
+	<DialogActions>
+		<MudButton Color="Color.Primary" OnClick="Submit">Close</MudButton>
+	</DialogActions>
+</MudDialog>
+
+<style> .cover-image-container {
+		width: 100%;
+		aspect-ratio: 3 / 4;
+		min-height: 200px;
+		background-color: #f5f5f5;
+		border-radius: 8px;
+		overflow: hidden;
+	}
+
+	.cover-image {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		border-radius: 8px;
+	}
+
+	.image-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+		gap: 12px;
+		margin-top: 8px;
+	}
+
+	.thumbnail-container {
+		position: relative;
+		aspect-ratio: 16 / 9;
+		background-color: #f5f5f5;
+		border-radius: 6px;
+		overflow: hidden;
+		cursor: pointer;
+		transition: transform 0.2s ease, box-shadow 0.2s ease;
+		border: 1px solid #e0e0e0;
+	}
+
+	.thumbnail-container:hover {
+		transform: scale(1.05);
+		box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+		z-index: 1;
+	}
+
+	.thumbnail-image {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		border-radius: 6px;
+	}
+
+	.thumbnail-image[src=""] {
+		display: none;
+	}
+
+	.thumbnail-container:has(.thumbnail-image[src=""]):before {
+		content: "🖼️";
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		font-size: 24px;
+		color: #999;
+	}
+</style>
+@code {
+	[CascadingParameter]
+	private IMudDialogInstance MudDialog { get; set; } = null!;
+
+	[Inject]
+	private IMetadataService MetadataService { get; set; } = null!;
+
+	private GameMetadata? GameMetadata { get; set; }
+
+	[Parameter]
+	public string? PlatformName { get; set; } = null;
+
+	[Parameter]
+	public string? GameId { get; set; } = null;
+
+	private HashSet<string> _failedImages = new();
+	private bool _isLoading = false;
+	private string _errorMessage = string.Empty;
+
+	private void Submit() => MudDialog.Close(DialogResult.Ok(true));
+
+	protected override async Task OnParametersSetAsync()
+	{
+		if (!string.IsNullOrEmpty(PlatformName) && !string.IsNullOrEmpty(GameId))
+		{
+			await LoadGameMetadata();
+		}
+	}
+
+	private async Task LoadGameMetadata()
+	{
+		_isLoading = true;
+		_errorMessage = string.Empty;
+		GameMetadata = null;
+		StateHasChanged();
+
+		try
+		{
+			GameMetadata = await MetadataService.GetGameAsync(PlatformName!, GameId!);
+			if (GameMetadata == null)
+			{
+				_errorMessage = "Game metadata not found.";
+			}
+		}
+		catch (Exception ex)
+		{
+			_errorMessage = $"Error loading game metadata: {ex.Message}";
+		}
+		finally
+		{
+			_isLoading = false;
+			StateHasChanged();
+		}
+	}
+
+	private void HandleCoverImageError()
+	{
+		// Handle cover image load error - could set a flag to show placeholder
+		StateHasChanged();
+	}
+
+	private void HandleImageError(string imageUrl)
+	{
+		_failedImages.Add(imageUrl);
+		StateHasChanged();
+	}
+
+	private void ShowImagePreview(string imageUrl, string title)
+	{
+		if (_failedImages.Contains(imageUrl)) return;
+
+		// Create image preview dialog
+		var parameters = new DialogParameters
+		{
+			["ImageUrl"] = imageUrl,
+			["Title"] = title
+		};
+
+		var options = new DialogOptions
+		{
+			MaxWidth = MaxWidth.Large,
+			FullWidth = true,
+			CloseButton = true
+		};
+	}
+
+	private async Task DownloadMetadata()
+	{
+		if (PlatformName == null || GameId == null) return;
+
+		try
+		{
+			var metadataUrl = $"/api/v1/metadata/platforms/{Uri.EscapeDataString(PlatformName)}/games/{Uri.EscapeDataString(GameId)}/metadata";
+
+			// Open the download URL in a new tab/window
+			await Task.Run(() =>
+			{
+				// In a real Blazor WebAssembly app, you would use IJSRuntime to open the download URL
+				// For now, this is a placeholder for the download functionality
+			});
+		}
+		catch (Exception ex)
+		{
+			// Handle download error - could show a snackbar with error message
+			Console.WriteLine($"Error downloading metadata: {ex.Message}");
+		}
+	}
+
+	private string GetImageUrl(string imageName)
+		=> $"/api/v1/metadata/platforms/{Uri.EscapeDataString(PlatformName)}/games/{Uri.EscapeDataString(GameId)}/images/{Uri.EscapeDataString(imageName)}";
+}

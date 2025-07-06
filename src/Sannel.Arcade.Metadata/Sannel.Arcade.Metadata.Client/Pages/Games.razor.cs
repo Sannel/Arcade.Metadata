@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components.Authorization;
 using Sannel.Arcade.Metadata.Client.Services;
 using Sannel.Arcade.Metadata.Client.Models;
+using MudBlazor;
+using Sannel.Arcade.Metadata.Client.Components.Dialog;
 
 namespace Sannel.Arcade.Metadata.Client.Pages;
 
@@ -14,6 +16,9 @@ public partial class Games : ComponentBase
 	[Inject] private NavigationManager Navigation { get; set; } = null!;
 
 	[Parameter] public string? Platform { get; set; }
+
+	[Inject]
+	private IDialogService DialogService { get; set; } = default!;
 
 	private GetGamesResponse _gamesResponse = new();
 	private string _errorMessage = string.Empty;
@@ -97,15 +102,32 @@ public partial class Games : ComponentBase
 	}
 
 	/// <summary>
-	/// Navigates to the game details page using the game ID.
+	/// Opens the game details dialog for the specified game.
 	/// </summary>
-	/// <param name="game">The game metadata containing the ID.</param>
-	private void NavigateToGameDetails(GameMetadata game)
+	/// <param name="game">The game metadata to display.</param>
+	private async Task NavigateToGameDetails(GameMetadata game)
 	{
-		if (!string.IsNullOrEmpty(game.Id) && !string.IsNullOrEmpty(Platform))
+		if (string.IsNullOrEmpty(game.Id) || string.IsNullOrEmpty(Platform))
 		{
-			Navigation.NavigateTo($"/games/{Platform}/{game.Id}");
+			return; // Can't open dialog without required parameters
 		}
+
+		var parameters = new DialogParameters<GameInfo>()
+		{
+			{ x => x.GameId, game.Id },
+			{ x => x.PlatformName, Platform }, // Use the page's Platform parameter
+		};
+
+		var options = new DialogOptions()
+		{
+			MaxWidth = MaxWidth.ExtraLarge,
+			FullWidth = true,
+			CloseButton = true,
+			CloseOnEscapeKey = true,
+			BackdropClick = false // Prevent accidental closing
+		};
+
+		await DialogService.ShowAsync<GameInfo>(game.Name ?? "Game Information", parameters, options);
 	}
 
 	/// <summary>
